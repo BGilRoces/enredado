@@ -1,0 +1,14 @@
+// prisma/schema.prisma
+//
+// Modelos del dominio (Cuenta de Instagram, Publicación, ...) se agregan a
+// partir del ticket 02. Este schema arranca vacío a propósito: el ticket 01
+// solo necesita que el schema `enredado` exista en la Postgres compartida y
+// que la conexión esté armada (ver lib/db/prisma.ts).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}

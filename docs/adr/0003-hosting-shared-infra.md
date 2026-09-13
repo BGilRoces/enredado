@@ -1,0 +1,7 @@
+# Alojar como proyecto propio en el Coolify existente, reusando shared-infra para Postgres, Auth y Storage
+
+El VPS (Coolify self-hosted, OVH) ya corre seis proyectos y una instancia de Supabase self-hosted compartida (`shared-infra`) usada por `tropero`, las dos apps de `sistemas` y `bertha` para su Postgres. El patrón `sistemas` ya resuelve "una sola Postgres compartida, un schema por app" (schema `liso` para `saume-sistema` y `liso-sistema`); el patrón `bertha` la usa sin schema propio.
+
+Decidimos crear un séptimo proyecto de Coolify (`enredado`) con su propio contenedor Next.js, deployado igual que el resto: GitHub Actions → SSH al VPS → API de Coolify, build directo del repo (sin GHCR, ese mecanismo es solo para `saume-sistema` porque comparte una imagen entre dos apps). Los datos de la app (Cuentas de Instagram, tokens, Publicaciones, Colaboradores) viven en la Postgres de `shared-infra`, en su propio schema `enredado` — mismo patrón que `sistemas`, no el de `bertha`, porque este dominio no tiene relación con los otros y así se evitan colisiones de nombres de tabla. El bucket temporal para exponer imágenes/videos de Drive a Meta, y el login del panel, también viven en `shared-infra` (Storage y Auth de esa misma instancia de Supabase).
+
+Por qué: es exactamente el perfil de carga liviana para el que existe `shared-infra`; sumar este proyecto ahí no agrega ningún proceso nuevo de base de datos al VPS, solo un contenedor Next.js más.
