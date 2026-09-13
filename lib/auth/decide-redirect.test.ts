@@ -71,4 +71,24 @@ describe("decideAuthRedirect", () => {
 
     expect(result).toEqual({ action: "json-401" });
   });
+
+  it("deja pasar una ruta de API cuando la sesión es válida y de esta app", () => {
+    const result = decideAuthRedirect({
+      hasSession: true,
+      belongsToThisApp: true,
+      pathname: "/api/cuentas",
+    });
+
+    expect(result).toEqual({ action: "allow" });
+  });
+
+  it("deja ver /login a una sesión de otra app, en vez de mandarla en loop", () => {
+    const result = decideAuthRedirect({
+      hasSession: true,
+      belongsToThisApp: false,
+      pathname: "/login",
+    });
+
+    expect(result).toEqual({ action: "allow" });
+  });
 });
