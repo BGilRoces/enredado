@@ -1,9 +1,4 @@
 // prisma/schema.prisma
-//
-// Modelos del dominio (Cuenta de Instagram, Publicación, ...) se agregan a
-// partir del ticket 02. Este schema arranca vacío a propósito: el ticket 01
-// solo necesita que el schema `enredado` exista en la Postgres compartida y
-// que la conexión esté armada (ver lib/db/prisma.ts).
 
 generator client {
   provider = "prisma-client-js"
@@ -11,4 +6,26 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// ─── CUENTAS DE INSTAGRAM ───────────────────────────────────────────────────
+
+enum EstadoCuenta {
+  conectada
+  desconectada
+}
+
+model Cuenta {
+  id                     String       @id @default(cuid())
+  nombre                 String
+  igUserId               String       @unique
+  igUsername             String
+  pageId                 String
+  // Token de acceso de Meta, cifrado con lib/crypto/token-cipher.ts antes de
+  // llegar acá — nunca se guarda en texto plano (ver ADR-0007).
+  accessTokenEncriptado  String?
+  tokenExpiraEl          DateTime?
+  estado                 EstadoCuenta @default(conectada)
+  creadaEn               DateTime     @default(now())
+  actualizadaEn          DateTime     @updatedAt
 }

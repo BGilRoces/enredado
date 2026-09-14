@@ -28,6 +28,10 @@ _Avoid_: video, clip.
 Una Publicación cuyo momento de salida se fija para un instante futuro en vez de publicarse de inmediato.
 _Avoid_: scheduled post, post programado.
 
+**Estado de la Cuenta**:
+`conectada` (tiene un token de Meta válido, se le puede publicar) o `desconectada` (el token se invalidó/borró, pero la Cuenta y su historial de Publicaciones se conservan).
+_Avoid_: activa/inactiva, habilitada/deshabilitada.
+
 **Colaborador**:
 Una persona invitada a usar el panel con acceso restringido a un subconjunto de las Cuentas de Instagram (nunca a todas por defecto).
 _Avoid_: usuario, invitado, admin.
