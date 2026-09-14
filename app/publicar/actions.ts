@@ -14,7 +14,7 @@ const MAX_ARCHIVOS_CAROUSEL = 10;
 export interface CrearPublicacionInput {
   cuentaId: string;
   /** Todos elegidos en la misma sesión del Picker — ver ADR-0011. */
-  archivos: { driveFileId: string }[];
+  archivos: { driveFileId: string; resourceKey?: string }[];
   driveAccessToken: string;
   tipoPublicacion: TipoPublicacion;
   caption: string;
@@ -36,10 +36,11 @@ export interface CrearPublicacionResultado {
 async function crearPublicacionSimple(
   cuenta: Cuenta,
   driveFileId: string,
+  resourceKey: string | undefined,
   input: Pick<CrearPublicacionInput, "driveAccessToken" | "tipoPublicacion" | "caption" | "programadaPara">
 ): Promise<string> {
   const preparado = await prepararArchivo(
-    { driveFileId, driveAccessToken: input.driveAccessToken, tipoPublicacion: input.tipoPublicacion },
+    { driveFileId, resourceKey, driveAccessToken: input.driveAccessToken, tipoPublicacion: input.tipoPublicacion },
     { drive: driveClient, storage: storageClient }
   );
 
@@ -157,7 +158,7 @@ export async function crearPublicacion(
     // quedar reflejado en `creadaEn`, que es lo que usa la cola para decidir
     // qué Historia sale primero cuando hay varias "ahora" en simultáneo.
     for (const archivo of input.archivos) {
-      ids.push(await crearPublicacionSimple(cuenta, archivo.driveFileId, input));
+      ids.push(await crearPublicacionSimple(cuenta, archivo.driveFileId, archivo.resourceKey, input));
     }
   }
 

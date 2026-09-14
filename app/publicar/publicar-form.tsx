@@ -63,7 +63,7 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
     try {
       const resultados = await crearPublicacion({
         cuentaId,
-        archivos: archivos.map((a) => ({ driveFileId: a.id })),
+        archivos: archivos.map((a) => ({ driveFileId: a.id, resourceKey: a.resourceKey })),
         driveAccessToken: archivos[0].accessToken,
         tipoPublicacion,
         caption,

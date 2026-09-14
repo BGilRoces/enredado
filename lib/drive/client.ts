@@ -2,30 +2,48 @@ import type { DriveClient } from "@/lib/publicador/types";
 
 const SHORTCUT_MIME_TYPE = "application/vnd.google-apps.shortcut";
 
+/** Google exige mandar el id y su resourceKey juntos en este formato. */
+function headersDrive(accessToken: string, driveFileId: string, resourceKey?: string): HeadersInit {
+  const headers: Record<string, string> = { Authorization: `Bearer ${accessToken}` };
+  if (resourceKey) headers["X-Goog-Drive-Resource-Keys"] = `${driveFileId}/${resourceKey}`;
+  return headers;
+}
+
 /**
- * Un "acceso directo" de Drive (ej.: lo que el Picker muestra al navegar
- * "Compartido conmigo", donde Google organiza todo con shortcuts desde 2020)
- * tiene su propio id, pero ese id no tiene contenido descargable — hay que
- * resolverlo al id del archivo real (`shortcutDetails.targetId`) antes de
- * pedir `alt=media`, si no la Graph API lo trata como inexistente (404).
+ * Resuelve el id (y resourceKey, si corresponde) con el que hay que pedir el
+ * contenido real, cubriendo dos casos que la API trata como "no existe"
+ * (404) si no se manejan:
+ *
+ * - Acceso directo (shortcut): lo que el Picker muestra al navegar
+ *   "Compartido conmigo" (Drive organiza casi todo así desde 2020) tiene su
+ *   propio id, pero ese id no tiene contenido propio — hay que resolverlo al
+ *   id real vía `shortcutDetails.targetId` (con su propio `targetResourceKey`,
+ *   si el shortcut tenía uno).
+ * - Resource key: un archivo compartido por link (no compartido directo con
+ *   la cuenta) exige mandar su `resourceKey` junto al id desde 2021 — el
+ *   Picker lo entrega junto al doc elegido (`doc.resourceKey`).
  */
-async function resolverIdReal(
+async function resolverArchivoReal(
   driveFileId: string,
-  accessToken: string
-): Promise<{ id: string; error?: string }> {
+  accessToken: string,
+  resourceKey: string | undefined
+): Promise<{ id: string; resourceKey?: string; error?: string }> {
   const res = await fetch(
     `https://www.googleapis.com/drive/v3/files/${driveFileId}` +
       "?fields=id,mimeType,shortcutDetails&supportsAllDrives=true",
-    { headers: { Authorization: `Bearer ${accessToken}` } }
+    { headers: headersDrive(accessToken, driveFileId, resourceKey) }
   );
   if (!res.ok) {
     return { id: driveFileId, error: `Google Drive respondió ${res.status} al leer el archivo` };
   }
   const meta = await res.json();
   if (meta.mimeType === SHORTCUT_MIME_TYPE && meta.shortcutDetails?.targetId) {
-    return { id: meta.shortcutDetails.targetId as string };
+    return {
+      id: meta.shortcutDetails.targetId as string,
+      resourceKey: meta.shortcutDetails.targetResourceKey as string | undefined,
+    };
   }
-  return { id: meta.id as string };
+  return { id: meta.id as string, resourceKey };
 }
 
 /**
@@ -34,8 +52,8 @@ async function resolverIdReal(
  * sincroniza el Drive, solo baja el archivo puntual que el usuario eligió.
  */
 export const driveClient: DriveClient = {
-  async descargarArchivo(driveFileId, accessToken) {
-    const real = await resolverIdReal(driveFileId, accessToken);
+  async descargarArchivo(driveFileId, accessToken, resourceKey) {
+    const real = await resolverArchivoReal(driveFileId, accessToken, resourceKey);
     if (real.error) throw new Error(real.error);
 
     const res = await fetch(
@@ -44,7 +62,7 @@ export const driveClient: DriveClient = {
       // "Mi unidad" — el Picker deja navegar y elegir esos archivos igual
       // (ver "Permitir navegar carpetas de Drive en el selector de archivos").
       `https://www.googleapis.com/drive/v3/files/${real.id}?alt=media&supportsAllDrives=true`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
+      { headers: headersDrive(accessToken, real.id, real.resourceKey) }
     );
     if (!res.ok) {
       throw new Error(`Google Drive respondió ${res.status} al descargar el archivo`);

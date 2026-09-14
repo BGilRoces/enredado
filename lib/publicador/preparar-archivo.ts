@@ -18,6 +18,8 @@ export interface PrepararArchivoInput {
   /** Token de Google (OAuth del Picker, scope drive.file) — no es el de Meta. */
   driveAccessToken: string;
   tipoPublicacion: TipoPublicacion;
+  /** Ver DriveClient en types.ts — Drive lo exige para archivos compartidos por link. */
+  resourceKey?: string;
 }
 
 export interface PrepararArchivoClients {
@@ -50,7 +52,7 @@ export async function prepararArchivo(
 ): Promise<PrepararResultado> {
   let archivo;
   try {
-    archivo = await clients.drive.descargarArchivo(input.driveFileId, input.driveAccessToken);
+    archivo = await clients.drive.descargarArchivo(input.driveFileId, input.driveAccessToken, input.resourceKey);
   } catch (error) {
     return { ok: false, error: mensajeDeError(error) };
   }
@@ -72,7 +74,7 @@ export async function prepararArchivo(
 }
 
 export interface PrepararArchivosInput {
-  archivos: { driveFileId: string }[];
+  archivos: { driveFileId: string; resourceKey?: string }[];
   driveAccessToken: string;
   tipoPublicacion: TipoPublicacion;
 }
@@ -93,6 +95,7 @@ export async function prepararArchivos(
     const resultado = await prepararArchivo(
       {
         driveFileId: archivo.driveFileId,
+        resourceKey: archivo.resourceKey,
         driveAccessToken: input.driveAccessToken,
         tipoPublicacion: input.tipoPublicacion,
       },

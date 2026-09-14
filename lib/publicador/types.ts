@@ -8,7 +8,13 @@ export interface ArchivoDrive {
 }
 
 export interface DriveClient {
-  descargarArchivo(driveFileId: string, accessToken: string): Promise<ArchivoDrive>;
+  /**
+   * `resourceKey`: Drive lo exige para archivos compartidos por link (no
+   * compartidos directo con la cuenta) desde 2021 — sin él, la API responde
+   * 404 aunque el archivo exista y haya acceso real. El Picker lo entrega
+   * junto al id cuando corresponde.
+   */
+  descargarArchivo(driveFileId: string, accessToken: string, resourceKey?: string): Promise<ArchivoDrive>;
 }
 
 export interface StorageClient {

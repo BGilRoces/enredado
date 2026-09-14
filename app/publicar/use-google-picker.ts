@@ -8,6 +8,8 @@ interface GooglePickerDoc {
   id: string;
   name: string;
   mimeType: string;
+  /** Presente cuando el archivo se compartió por link (no directo con la cuenta) — Drive lo exige para poder leerlo. */
+  resourceKey?: string;
 }
 
 interface GooglePickerResponse {
@@ -68,6 +70,7 @@ export interface ArchivoElegido {
   nombre: string;
   mimeType: string;
   accessToken: string;
+  resourceKey?: string;
 }
 
 function loadScript(src: string): Promise<void> {
@@ -130,7 +133,13 @@ export function useGooglePicker() {
           if (data.action !== google.picker.Action.PICKED) return;
           // Reemplaza la selección anterior: reabrir el Picker arranca de cero.
           setArchivos(
-            data.docs.map((doc) => ({ id: doc.id, nombre: doc.name, mimeType: doc.mimeType, accessToken }))
+            data.docs.map((doc) => ({
+              id: doc.id,
+              nombre: doc.name,
+              mimeType: doc.mimeType,
+              accessToken,
+              resourceKey: doc.resourceKey,
+            }))
           );
           setError(null);
         })
