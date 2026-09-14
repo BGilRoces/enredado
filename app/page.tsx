@@ -18,9 +18,14 @@ export default async function DashboardPage() {
         Sesión de {user?.email} — {cuentasConectadas} Cuenta(s) de Instagram
         conectada(s).
       </p>
-      <a href="/cuentas" className="text-sm underline">
-        Gestionar Cuentas
-      </a>
+      <div className="flex gap-4">
+        <a href="/cuentas" className="text-sm underline">
+          Gestionar Cuentas
+        </a>
+        <a href="/publicar" className="text-sm underline">
+          Publicar
+        </a>
+      </div>
     </div>
   );
 }

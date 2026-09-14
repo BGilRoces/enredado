@@ -16,16 +16,45 @@ enum EstadoCuenta {
 }
 
 model Cuenta {
-  id                     String       @id @default(cuid())
+  id                     String        @id @default(cuid())
   nombre                 String
-  igUserId               String       @unique
+  igUserId               String        @unique
   igUsername             String
   pageId                 String
   // Token de acceso de Meta, cifrado con lib/crypto/token-cipher.ts antes de
   // llegar acá — nunca se guarda en texto plano (ver ADR-0007).
   accessTokenEncriptado  String?
   tokenExpiraEl          DateTime?
-  estado                 EstadoCuenta @default(conectada)
-  creadaEn               DateTime     @default(now())
-  actualizadaEn          DateTime     @updatedAt
+  estado                 EstadoCuenta  @default(conectada)
+  creadaEn               DateTime      @default(now())
+  actualizadaEn          DateTime      @updatedAt
+  publicaciones          Publicacion[]
+}
+
+// ─── PUBLICACIONES ──────────────────────────────────────────────────────────
+
+enum TipoPublicacion {
+  post
+  historia
+  reel
+}
+
+enum EstadoPublicacion {
+  publicando
+  publicada
+  fallida
+}
+
+model Publicacion {
+  id            String            @id @default(cuid())
+  cuentaId      String
+  cuenta        Cuenta            @relation(fields: [cuentaId], references: [id])
+  tipo          TipoPublicacion
+  driveFileId   String
+  caption       String?
+  estado        EstadoPublicacion @default(publicando)
+  metaMediaId   String?
+  error         String?
+  creadaEn      DateTime          @default(now())
+  actualizadaEn DateTime          @updatedAt
 }

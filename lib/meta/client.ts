@@ -1,12 +1,17 @@
 import type { MetaClient, MetaPage } from "./resolve-accounts";
+import type { MetaPublishClient } from "@/lib/publicador/types";
+import { requireEnv } from "@/lib/env";
 import { GRAPH_VERSION } from "./config";
 
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} no está configurado (ver .env.example)`);
-  return value;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parseGraphResponse(res: Response, body: any) {
+  if (!res.ok) {
+    const message = body?.error?.message ?? `Graph API respondió ${res.status}`;
+    throw new Error(message);
+  }
+  return body;
 }
 
 async function graphGet(path: string, params: Record<string, string>) {
@@ -15,12 +20,15 @@ async function graphGet(path: string, params: Record<string, string>) {
     url.searchParams.set(key, value);
   }
   const res = await fetch(url);
-  const body = await res.json();
-  if (!res.ok) {
-    const message = body?.error?.message ?? `Graph API respondió ${res.status}`;
-    throw new Error(message);
-  }
-  return body;
+  return parseGraphResponse(res, await res.json());
+}
+
+async function graphPost(path: string, params: Record<string, string>) {
+  const res = await fetch(`${GRAPH_BASE}${path}`, {
+    method: "POST",
+    body: new URLSearchParams(params),
+  });
+  return parseGraphResponse(res, await res.json());
 }
 
 /** Cliente real contra la Graph API de Meta. Ver lib/meta/resolve-accounts.ts para el uso. */
@@ -61,5 +69,25 @@ export const metaClient: MetaClient = {
     const ig = body.instagram_business_account;
     if (!ig) return null;
     return { igUserId: ig.id as string, igUsername: ig.username as string };
+  },
+};
+
+/** Cliente real de Content Publishing contra la Graph API. Ver lib/publicador/publicar-post.ts. */
+export const metaPublishClient: MetaPublishClient = {
+  async createImageContainer(igUserId, accessToken, params) {
+    const body = await graphPost(`/${igUserId}/media`, {
+      image_url: params.imageUrl,
+      ...(params.caption ? { caption: params.caption } : {}),
+      access_token: accessToken,
+    });
+    return { containerId: body.id as string };
+  },
+
+  async publishContainer(igUserId, accessToken, containerId) {
+    const body = await graphPost(`/${igUserId}/media_publish`, {
+      creation_id: containerId,
+      access_token: accessToken,
+    });
+    return { mediaId: body.id as string };
   },
 };
