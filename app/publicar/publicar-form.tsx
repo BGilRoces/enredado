@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { publicarEnInstagram } from "./actions";
+import { crearPublicacion } from "./actions";
 import { useGooglePicker } from "./use-google-picker";
 
 interface CuentaOption {
@@ -18,12 +18,21 @@ const TIPOS: { value: TipoPublicacionOption; label: string }[] = [
   { value: "reel", label: "Reel" },
 ];
 
+const MENSAJE_POR_ESTADO: Record<string, string> = {
+  publicada: "Publicado en Instagram.",
+  pendiente: "En cola — se va a publicar en un momento.",
+  publicando: "Publicando ahora mismo...",
+};
+
 export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
   const { archivo, elegirDeDrive, error: errorPicker } = useGooglePicker();
   const [cuentaId, setCuentaId] = useState(cuentas[0]?.id ?? "");
   const [tipoPublicacion, setTipoPublicacion] = useState<TipoPublicacionOption>("post");
   const [caption, setCaption] = useState("");
-  const [estado, setEstado] = useState<"idle" | "publicando" | "publicada" | "fallida">("idle");
+  const [cuando, setCuando] = useState<"ahora" | "programar">("ahora");
+  const [programadaPara, setProgramadaPara] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [mensaje, setMensaje] = useState<string | null>(null);
   const [errorPublicar, setErrorPublicar] = useState<string | null>(null);
 
   const error = errorPublicar ?? errorPicker;
@@ -31,25 +40,27 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
   async function onSubmit(formEvent: React.FormEvent) {
     formEvent.preventDefault();
     if (!archivo) return;
-    setEstado("publicando");
+    setEnviando(true);
     setErrorPublicar(null);
+    setMensaje(null);
     try {
-      const resultado = await publicarEnInstagram({
+      const resultado = await crearPublicacion({
         cuentaId,
         driveFileId: archivo.id,
         driveAccessToken: archivo.accessToken,
         tipoPublicacion,
         caption,
+        programadaPara: cuando === "programar" && programadaPara ? new Date(programadaPara) : null,
       });
-      if (resultado.estado === "publicada") {
-        setEstado("publicada");
+      if (resultado.estado === "fallida") {
+        setErrorPublicar(resultado.error ?? "Falló, sin más detalle.");
       } else {
-        setEstado("fallida");
-        setErrorPublicar(resultado.error);
+        setMensaje(MENSAJE_POR_ESTADO[resultado.estado] ?? resultado.estado);
       }
     } catch (err) {
-      setEstado("fallida");
       setErrorPublicar(err instanceof Error ? err.message : String(err));
+    } finally {
+      setEnviando(false);
     }
   }
 
@@ -109,17 +120,47 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
         />
       </label>
 
+      <fieldset className="flex flex-col gap-2 text-sm">
+        <legend className="mb-1 font-medium">Cuándo</legend>
+        <label className="flex items-center gap-2">
+          <input
+            type="radio"
+            checked={cuando === "ahora"}
+            onChange={() => setCuando("ahora")}
+          />
+          Ahora
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="radio"
+            checked={cuando === "programar"}
+            onChange={() => setCuando("programar")}
+          />
+          Programar para
+        </label>
+        {cuando === "programar" && (
+          <input
+            type="datetime-local"
+            value={programadaPara}
+            onChange={(e) => setProgramadaPara(e.target.value)}
+            required
+            className="rounded border border-zinc-300 p-2"
+          />
+        )}
+        {cuando === "programar" && (
+          <span className="text-xs text-zinc-500">Hora UTC (no la de tu huso horario).</span>
+        )}
+      </fieldset>
+
       <button
         type="submit"
-        disabled={!archivo || estado === "publicando"}
+        disabled={!archivo || enviando}
         className="rounded bg-zinc-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-40"
       >
-        {estado === "publicando" ? "Publicando..." : "Publicar ahora"}
+        {enviando ? "Enviando..." : cuando === "programar" ? "Programar" : "Publicar ahora"}
       </button>
 
-      {estado === "publicada" && (
-        <p className="rounded bg-green-50 p-3 text-sm text-green-700">Publicado en Instagram.</p>
-      )}
+      {mensaje && <p className="rounded bg-green-50 p-3 text-sm text-green-700">{mensaje}</p>}
       {error && <p className="rounded bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     </form>
   );

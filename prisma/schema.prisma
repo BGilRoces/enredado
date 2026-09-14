@@ -40,9 +40,16 @@ enum TipoPublicacion {
 }
 
 enum EstadoPublicacion {
+  pendiente
   publicando
   publicada
   fallida
+  cancelada
+}
+
+enum TipoMedia {
+  imagen
+  video
 }
 
 model Publicacion {
@@ -52,7 +59,14 @@ model Publicacion {
   tipo          TipoPublicacion
   driveFileId   String
   caption       String?
-  estado        EstadoPublicacion @default(publicando)
+  // Nulo = publicar apenas la cola la procese. Con valor = Publicación
+  // programada, el scheduler la deja lista para la cola recién al llegar la hora.
+  programadaPara DateTime?
+  // Se completan en el paso "preparar" (ver ADR-0009), antes de que la cola
+  // la dispare — el archivo ya está expuesto en Storage cuando le toca salir.
+  tipoMedia     TipoMedia?
+  storageUrl    String?
+  estado        EstadoPublicacion @default(pendiente)
   metaMediaId   String?
   error         String?
   creadaEn      DateTime          @default(now())
