@@ -5,10 +5,10 @@ import { encryptToken } from "@/lib/crypto/token-cipher";
 import { metaClient } from "@/lib/meta/client";
 import { resolveInstagramAccounts, type ResolvedAccount } from "@/lib/meta/resolve-accounts";
 import { decideCallbackOutcome } from "@/lib/meta/callback-outcome";
-import { OAUTH_STATE_COOKIE } from "@/lib/meta/config";
+import { APP_URL, OAUTH_STATE_COOKIE } from "@/lib/meta/config";
 
-function redirectToCuentas(request: NextRequest, params: Record<string, string>) {
-  const url = new URL("/cuentas", request.url);
+function redirectToCuentas(params: Record<string, string>) {
+  const url = new URL("/cuentas", APP_URL);
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
   }
@@ -40,22 +40,22 @@ export async function GET(request: NextRequest) {
   });
 
   if (outcome.type === "error") {
-    return redirectToCuentas(request, { error: outcome.message });
+    return redirectToCuentas({ error: outcome.message });
   }
 
-  const redirectUri = new URL("/api/meta/callback", request.url).toString();
+  const redirectUri = new URL("/api/meta/callback", APP_URL).toString();
 
   let resolved: ResolvedAccount[];
   try {
     resolved = await resolveInstagramAccounts(outcome.code, redirectUri, metaClient);
   } catch {
-    return redirectToCuentas(request, {
+    return redirectToCuentas({
       error: "Meta rechazó la conexión. Revisá que la cuenta sea Business/Creator y esté vinculada a una Página de Facebook.",
     });
   }
 
   if (resolved.length === 0) {
-    return redirectToCuentas(request, {
+    return redirectToCuentas({
       error: "No encontramos ninguna Cuenta de Instagram Business/Creator vinculada a tus Páginas de Facebook.",
     });
   }
@@ -72,10 +72,10 @@ export async function GET(request: NextRequest) {
       })
     );
   } catch {
-    return redirectToCuentas(request, {
+    return redirectToCuentas({
       error: "Conectamos con Meta pero no pudimos guardar la(s) Cuenta(s). Probá de nuevo.",
     });
   }
 
-  return redirectToCuentas(request, { connected: String(resolved.length) });
+  return redirectToCuentas({ connected: String(resolved.length) });
 }

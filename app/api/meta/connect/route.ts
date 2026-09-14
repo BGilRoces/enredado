@@ -1,11 +1,11 @@
 import { randomBytes } from "node:crypto";
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { buildAuthorizeUrl } from "@/lib/meta/oauth-url";
-import { OAUTH_STATE_COOKIE } from "@/lib/meta/config";
+import { APP_URL, OAUTH_STATE_COOKIE } from "@/lib/meta/config";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   const state = randomBytes(16).toString("hex");
-  const redirectUri = new URL("/api/meta/callback", request.url).toString();
+  const redirectUri = new URL("/api/meta/callback", APP_URL).toString();
 
   const response = NextResponse.redirect(buildAuthorizeUrl(redirectUri, state));
   response.cookies.set(OAUTH_STATE_COOKIE, state, {
