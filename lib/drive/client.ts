@@ -14,16 +14,34 @@ function headersDrive(accessToken: string, driveFileId: string, resourceKey?: st
  * cuerpo de error de Google trae la razón real (permisos insuficientes,
  * scope, archivo inexistente, etc. — cada una pide un fix distinto). Nunca
  * descartar ese cuerpo aunque no sea JSON válido.
+ *
+ * También se suma qué cuenta de Google es la autenticada con ese token: la
+ * app maneja varias empresas/Cuentas de Instagram, cada una con su propio
+ * Drive (por eso el selector de cuenta de Google es forzado en el Picker,
+ * ver "Forzar selector de cuenta de Google en el Picker") — un "File not
+ * found" en un archivo recién elegido es la firma típica de haber elegido el
+ * archivo en una cuenta y autorizado el token con otra.
  */
-async function mensajeErrorGoogle(res: Response, accion: string): Promise<string> {
+async function mensajeErrorGoogle(res: Response, accion: string, accessToken: string): Promise<string> {
   const cuerpo = await res.text();
+  let detalle: string;
   try {
-    const parsed = JSON.parse(cuerpo);
-    const detalle = parsed?.error?.message ?? cuerpo;
-    return `Google Drive respondió ${res.status} al ${accion}: ${detalle}`;
+    detalle = JSON.parse(cuerpo)?.error?.message ?? cuerpo;
   } catch {
-    return `Google Drive respondió ${res.status} al ${accion}${cuerpo ? `: ${cuerpo}` : ""}`;
+    detalle = cuerpo;
   }
+
+  let cuenta = "no se pudo determinar";
+  try {
+    const infoRes = await fetch("https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (infoRes.ok) cuenta = (await infoRes.json())?.user?.emailAddress ?? cuenta;
+  } catch {
+    // Best-effort: si esto falla, se informa el error original igual.
+  }
+
+  return `Google Drive respondió ${res.status} al ${accion} (autenticado como ${cuenta})${detalle ? `: ${detalle}` : ""}`;
 }
 
 /**
@@ -51,7 +69,7 @@ async function resolverArchivoReal(
     { headers: headersDrive(accessToken, driveFileId, resourceKey) }
   );
   if (!res.ok) {
-    return { id: driveFileId, error: await mensajeErrorGoogle(res, "leer el archivo") };
+    return { id: driveFileId, error: await mensajeErrorGoogle(res, "leer el archivo", accessToken) };
   }
   const meta = await res.json();
   if (meta.mimeType === SHORTCUT_MIME_TYPE && meta.shortcutDetails?.targetId) {
@@ -82,7 +100,7 @@ export const driveClient: DriveClient = {
       { headers: headersDrive(accessToken, real.id, real.resourceKey) }
     );
     if (!res.ok) {
-      throw new Error(await mensajeErrorGoogle(res, "descargar el archivo"));
+      throw new Error(await mensajeErrorGoogle(res, "descargar el archivo", accessToken));
     }
     const mimeType = res.headers.get("content-type") ?? "application/octet-stream";
     const data = Buffer.from(await res.arrayBuffer());
