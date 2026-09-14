@@ -43,6 +43,6 @@ npx tsc --noEmit   # typecheck
 
 ## Deploy
 
-Igual que el resto de los proyectos del VPS: push a `main` dispara un GitHub Action que hace SSH al VPS y llama a la API de Coolify para redeployar el proyecto `enredado` (ver ADR-0003 y `docs/agents/issue-tracker.md` para cómo se trackea el trabajo pendiente).
+Igual que el resto de los proyectos del VPS: push a `main` dispara un GitHub Action que hace SSH al VPS y llama a la API de Coolify para redeployar el proyecto `enredado` (ver ADR-0003). Proyecto Coolify y primer deploy real ya verificados — ver `.scratch/panel-instagram-v1/issues/01-panel-base-login-deploy.md` para el detalle y lo que queda pendiente (env vars de Supabase, schema, usuario de login, deploy key de GitHub Actions).
 
-**Nota:** crear el proyecto en Coolify, generar el `COOLIFY_API_TOKEN`, cargar los GitHub Secrets, y crear el schema `enredado` en la Postgres de `shared-infra` son pasos manuales — ninguno se hizo todavía como parte del ticket 01 en código, quedan pendientes de correr con vos (candidatos a `/wizard`).
+**Nota sobre visibilidad:** este repo es **público**, a diferencia del resto de los proyectos del VPS (que usan deploy keys por-repo para que Coolify clone repos privados). No tiene secretos adentro — viven todos en variables de entorno — pero si en algún momento se agrega una deploy key propia, se puede volver a privado.
