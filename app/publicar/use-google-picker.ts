@@ -23,6 +23,12 @@ interface GooglePickerBuilder {
   build(): { setVisible(visible: boolean): void };
 }
 
+interface GooglePickerDocsView {
+  setIncludeFolders(include: boolean): GooglePickerDocsView;
+  setSelectFolderEnabled(enabled: boolean): GooglePickerDocsView;
+  setMimeTypes(mimeTypes: string): GooglePickerDocsView;
+}
+
 interface GoogleTokenClient {
   requestAccessToken(): void;
 }
@@ -42,7 +48,8 @@ declare global {
       };
       picker: {
         PickerBuilder: new () => GooglePickerBuilder;
-        ViewId: { DOCS_IMAGES: unknown; DOCS_VIDEOS: unknown };
+        DocsView: new (viewId?: unknown) => GooglePickerDocsView;
+        ViewId: { DOCS: unknown };
         Action: { PICKED: string };
       };
     };
@@ -93,9 +100,20 @@ export function useGooglePicker() {
     if (!window.gapi || !window.google) return;
     const { google } = window;
     window.gapi.load("picker", () => {
+      // DocsView (en vez de ViewId.DOCS_IMAGES/DOCS_VIDEOS) muestra las
+      // carpetas del Drive y permite navegarlas; los ViewId de tipo
+      // "DOCS_*" listan los archivos sueltos que matchean, sin carpetas.
+      const vistaImagenes = new google.picker.DocsView(google.picker.ViewId.DOCS)
+        .setIncludeFolders(true)
+        .setSelectFolderEnabled(false)
+        .setMimeTypes("image/png,image/jpeg,image/gif,image/webp");
+      const vistaVideos = new google.picker.DocsView(google.picker.ViewId.DOCS)
+        .setIncludeFolders(true)
+        .setSelectFolderEnabled(false)
+        .setMimeTypes("video/mp4,video/quicktime,video/webm,video/x-m4v");
       const picker = new google.picker.PickerBuilder()
-        .addView(google.picker.ViewId.DOCS_IMAGES)
-        .addView(google.picker.ViewId.DOCS_VIDEOS)
+        .addView(vistaImagenes)
+        .addView(vistaVideos)
         .setOAuthToken(accessToken)
         .setDeveloperKey(process.env.NEXT_PUBLIC_GOOGLE_API_KEY ?? "")
         .setCallback((data: GooglePickerResponse) => {

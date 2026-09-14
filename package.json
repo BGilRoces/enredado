@@ -8,6 +8,7 @@
   "scripts": {
     "postinstall": "prisma generate",
     "dev": "next dev",
+    "db:tunnel": "bash scripts/db-tunnel.sh",
     "build": "next build",
     "start": "prisma migrate deploy && next start",
     "lint": "eslint",
