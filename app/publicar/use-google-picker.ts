@@ -22,6 +22,7 @@ interface GooglePickerBuilder {
   enableFeature(feature: unknown): GooglePickerBuilder;
   setOAuthToken(token: string): GooglePickerBuilder;
   setDeveloperKey(key: string): GooglePickerBuilder;
+  setAppId(appId: string): GooglePickerBuilder;
   setCallback(callback: (data: GooglePickerResponse) => void): GooglePickerBuilder;
   build(): { setVisible(visible: boolean): void };
 }
@@ -64,6 +65,18 @@ declare global {
 }
 
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+
+/**
+ * Google exige setAppId() (el número de proyecto de Cloud) para que el
+ * scope drive.file otorgue acceso real al archivo elegido — sin esto, la
+ * Drive API trata cualquier archivo elegido por el Picker como inexistente
+ * (404 "File not found"), incluso siendo el dueño. El número de proyecto es
+ * el prefijo numérico del propio Client ID (antes del primer guion), así que
+ * no hace falta pedir un dato nuevo.
+ */
+function numeroDeProyecto(clientId: string): string {
+  return clientId.split("-")[0];
+}
 
 export interface ArchivoElegido {
   id: string;
@@ -124,7 +137,8 @@ export function useGooglePicker() {
         .addView(vistaImagenes)
         .addView(vistaVideos)
         .setOAuthToken(accessToken)
-        .setDeveloperKey(process.env.NEXT_PUBLIC_GOOGLE_API_KEY ?? "");
+        .setDeveloperKey(process.env.NEXT_PUBLIC_GOOGLE_API_KEY ?? "")
+        .setAppId(numeroDeProyecto(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? ""));
       if (multipleRef.current) {
         builder = builder.enableFeature(google.picker.Feature.MULTISELECT_ENABLED);
       }
