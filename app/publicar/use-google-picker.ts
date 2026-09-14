@@ -35,6 +35,7 @@ declare global {
           initTokenClient(config: {
             client_id: string;
             scope: string;
+            prompt?: string;
             callback: (response: { access_token: string; error?: string }) => void;
           }): GoogleTokenClient;
         };
@@ -118,6 +119,10 @@ export function useGooglePicker() {
       tokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
         client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "",
         scope: DRIVE_SCOPE,
+        // Fuerza el selector de cuenta en cada login: el panel maneja varias
+        // empresas y cada una puede tener su propio Google Drive, así que no
+        // hay que quedar pegado silenciosamente a la última sesión del navegador.
+        prompt: "select_account",
         callback: (tokenResponse) => {
           if (tokenResponse.error) {
             setError("Google no autorizó el acceso a Drive.");
