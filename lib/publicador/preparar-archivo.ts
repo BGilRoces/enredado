@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import { TipoPublicacion } from "@prisma/client";
 import type {
   DriveClient,
@@ -10,8 +11,25 @@ import { mensajeDeError } from "@/lib/mensaje-de-error";
 
 /** Instagram solo acepta JPEG para imágenes (PNG/WebP/GIF son rechazados). */
 const FORMATOS_IMAGEN_SOPORTADOS = new Set(["image/jpeg"]);
+/** Los que deja elegir el Picker (ver use-google-picker.ts) y no son JPEG — se convierten en vez de rechazarse. */
+const FORMATOS_IMAGEN_CONVERTIBLES = new Set(["image/png", "image/webp", "image/gif"]);
 /** Contenedores de video que acepta la Graph API. */
 const FORMATOS_VIDEO_SOPORTADOS = new Set(["video/mp4", "video/quicktime"]);
+
+/**
+ * Instagram sólo acepta JPEG para fotos — en vez de rechazar directo lo que
+ * el usuario eligió de Drive en otro formato de imagen, se convierte acá
+ * (fondo blanco para la transparencia de PNG/WebP; de un GIF animado queda
+ * el primer cuadro, ya que Instagram tampoco soporta GIF animado como foto).
+ */
+async function convertirAJpegSiHaceFalta(
+  data: Buffer,
+  mimeType: string
+): Promise<{ data: Buffer; mimeType: string }> {
+  if (!FORMATOS_IMAGEN_CONVERTIBLES.has(mimeType)) return { data, mimeType };
+  const convertido = await sharp(data).flatten({ background: "#ffffff" }).jpeg().toBuffer();
+  return { data: convertido, mimeType: "image/jpeg" };
+}
 
 export interface PrepararArchivoInput {
   driveFileId: string;
@@ -55,6 +73,12 @@ export async function prepararArchivo(
     archivo = await clients.drive.descargarArchivo(input.driveFileId, input.driveAccessToken, input.resourceKey);
   } catch (error) {
     return { ok: false, error: mensajeDeError(error) };
+  }
+
+  try {
+    archivo = await convertirAJpegSiHaceFalta(archivo.data, archivo.mimeType);
+  } catch (error) {
+    return { ok: false, error: `No se pudo convertir la imagen a JPEG: ${mensajeDeError(error)}` };
   }
 
   const tipoMedia = detectarTipoMedia(input.tipoPublicacion, archivo.mimeType);

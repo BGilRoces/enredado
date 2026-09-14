@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import { TipoPublicacion } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 import { prepararArchivo, prepararArchivos } from "./preparar-archivo";
@@ -5,15 +6,22 @@ import type { DriveClient, StorageClient } from "./types";
 
 const INPUT = { driveFileId: "drive-1", driveAccessToken: "token-drive", tipoPublicacion: TipoPublicacion.post };
 
+/** PNG real y mínimo — hace falta que sharp pueda parsearlo de verdad para probar la conversión. */
+function pngDeUnPixel(): Promise<Buffer> {
+  return sharp({ create: { width: 2, height: 2, channels: 3, background: { r: 255, g: 0, b: 0 } } })
+    .png()
+    .toBuffer();
+}
+
 function fakeDrive(
   llamadas: string[] = [],
-  opts: { mimeType?: string; falla?: string; fallaEnId?: string } = {}
+  opts: { mimeType?: string; data?: Buffer; falla?: string; fallaEnId?: string } = {}
 ): DriveClient {
   return {
     async descargarArchivo(driveFileId, accessToken) {
       llamadas.push(`drive.descargarArchivo(${driveFileId}, ${accessToken})`);
       if (opts.falla || opts.fallaEnId === driveFileId) throw new Error(opts.falla ?? "formato rechazado");
-      return { data: Buffer.from("contenido"), mimeType: opts.mimeType ?? "image/jpeg" };
+      return { data: opts.data ?? Buffer.from("contenido"), mimeType: opts.mimeType ?? "image/jpeg" };
     },
   };
 }
@@ -64,10 +72,28 @@ describe("prepararArchivo", () => {
     });
   });
 
-  it("formato de imagen no soportado: no sube a Storage", async () => {
+  it("PNG: se convierte a JPEG antes de subir (Instagram no acepta PNG)", async () => {
     const llamadas: string[] = [];
     const resultado = await prepararArchivo(INPUT, {
-      drive: fakeDrive(llamadas, { mimeType: "image/png" }),
+      drive: fakeDrive(llamadas, { mimeType: "image/png", data: await pngDeUnPixel() }),
+      storage: fakeStorage(llamadas),
+    });
+
+    expect(resultado).toEqual({
+      ok: true,
+      tipoMedia: "imagen",
+      storageUrl: "https://storage.example/drive-1",
+    });
+    expect(llamadas).toEqual([
+      "drive.descargarArchivo(drive-1, token-drive)",
+      "storage.subir(drive-1, image/jpeg)",
+    ]);
+  });
+
+  it("formato de imagen no convertible (ni JPEG ni PNG/WebP/GIF): no sube a Storage", async () => {
+    const llamadas: string[] = [];
+    const resultado = await prepararArchivo(INPUT, {
+      drive: fakeDrive(llamadas, { mimeType: "image/bmp" }),
       storage: fakeStorage(llamadas),
     });
 
