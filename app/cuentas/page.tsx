@@ -1,6 +1,31 @@
-import { EstadoCuenta } from "@prisma/client";
+import { EstadoCuenta, EstadoPublicacion, type Cuenta } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { desconectarCuenta } from "./actions";
+import { LIMITE_PUBLICACIONES_POR_VENTANA, VENTANA_LIMITE_MS } from "@/lib/limite-diario/excedio-limite-diario";
+
+/** Función aparte (no en el cuerpo del Server Component) para no llamar Date.now() en el render. */
+async function contarPublicadasHoyPorCuenta(cuentas: Cuenta[]): Promise<Map<string, number>> {
+  const desdeVentana = new Date(Date.now() - VENTANA_LIMITE_MS);
+  return new Map(
+    await Promise.all(
+      cuentas
+        .filter((cuenta) => cuenta.estado === EstadoCuenta.conectada)
+        .map(
+          async (cuenta) =>
+            [
+              cuenta.id,
+              await prisma.publicacion.count({
+                where: {
+                  cuentaId: cuenta.id,
+                  estado: EstadoPublicacion.publicada,
+                  publicadaEn: { gt: desdeVentana },
+                },
+              }),
+            ] as const
+        )
+    )
+  );
+}
 
 export default async function CuentasPage({
   searchParams,
@@ -12,6 +37,7 @@ export default async function CuentasPage({
   const error = typeof params.error === "string" ? params.error : null;
 
   const cuentas = await prisma.cuenta.findMany({ orderBy: { creadaEn: "asc" } });
+  const publicadasHoyPorCuenta = await contarPublicadasHoyPorCuenta(cuentas);
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
@@ -56,6 +82,8 @@ export default async function CuentasPage({
                   {cuenta.estado === EstadoCuenta.necesitaReconexion
                     ? "necesita reconexión"
                     : cuenta.estado}
+                  {cuenta.estado === EstadoCuenta.conectada &&
+                    ` · ${publicadasHoyPorCuenta.get(cuenta.id) ?? 0}/${LIMITE_PUBLICACIONES_POR_VENTANA} publicadas (últimas 24hs)`}
                 </p>
               </div>
               {cuenta.estado === EstadoCuenta.conectada && (

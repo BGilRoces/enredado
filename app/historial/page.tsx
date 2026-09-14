@@ -13,6 +13,7 @@ const ESTADOS = [
   EstadoPublicacion.publicando,
   EstadoPublicacion.publicada,
   EstadoPublicacion.fallida,
+  EstadoPublicacion.bloqueadaPorLimite,
   EstadoPublicacion.cancelada,
 ] as const;
 

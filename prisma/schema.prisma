@@ -49,6 +49,9 @@ enum EstadoPublicacion {
   publicada
   fallida
   cancelada
+  // La Cuenta ya llegó a su límite diario de Meta (ventana móvil de 24hs) —
+  // nunca se intentó contra la Graph API, distinto de un fallo real (ticket 08).
+  bloqueadaPorLimite
 }
 
 enum TipoMedia {
@@ -72,6 +75,11 @@ model Publicacion {
   storageUrl    String?
   estado        EstadoPublicacion @default(pendiente)
   metaMediaId   String?
+  // Momento real en que Meta confirmó la publicación — no se infiere de
+  // `actualizadaEn` (que se mueve con cualquier update a la fila) para que
+  // el cálculo del límite diario (ticket 08) no dependa de una asunción
+  // implícita sobre qué más puede llegar a tocar una fila "publicada".
+  publicadaEn   DateTime?
   error         String?
   creadaEn      DateTime          @default(now())
   actualizadaEn DateTime          @updatedAt

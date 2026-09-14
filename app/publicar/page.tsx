@@ -39,7 +39,12 @@ export default async function PublicarPage({
   const publicaciones = await prisma.publicacion.findMany({
     where: {
       estado: {
-        in: [EstadoPublicacion.publicada, EstadoPublicacion.fallida, EstadoPublicacion.cancelada],
+        in: [
+          EstadoPublicacion.publicada,
+          EstadoPublicacion.fallida,
+          EstadoPublicacion.bloqueadaPorLimite,
+          EstadoPublicacion.cancelada,
+        ],
       },
     },
     orderBy: { creadaEn: "desc" },

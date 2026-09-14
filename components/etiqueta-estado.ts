@@ -6,6 +6,7 @@ const ETIQUETAS: Record<EstadoPublicacion, string> = {
   publicada: "Publicada",
   fallida: "Fallida",
   cancelada: "Cancelada",
+  bloqueadaPorLimite: "Bloqueada por límite",
 };
 
 /**
