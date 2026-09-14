@@ -149,9 +149,17 @@ export async function crearPublicacion(
 
   const esCarousel = input.tipoPublicacion === TipoPublicacion.post && input.archivos.length > 1;
 
-  const ids = esCarousel
-    ? [await crearPublicacionCarousel(cuenta, input)]
-    : await Promise.all(input.archivos.map((archivo) => crearPublicacionSimple(cuenta, archivo.driveFileId, input)));
+  const ids: string[] = [];
+  if (esCarousel) {
+    ids.push(await crearPublicacionCarousel(cuenta, input));
+  } else {
+    // Secuencial (no Promise.all): el orden elegido en el Picker tiene que
+    // quedar reflejado en `creadaEn`, que es lo que usa la cola para decidir
+    // qué Historia sale primero cuando hay varias "ahora" en simultáneo.
+    for (const archivo of input.archivos) {
+      ids.push(await crearPublicacionSimple(cuenta, archivo.driveFileId, input));
+    }
+  }
 
   await tick();
 

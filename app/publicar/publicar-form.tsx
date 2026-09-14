@@ -33,6 +33,7 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
     archivos,
     elegirDeDrive,
     quitarArchivo,
+    moverArchivo,
     limpiarSeleccion,
     error: errorPicker,
   } = useGooglePicker();
@@ -100,9 +101,34 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
         </button>
         {archivos.length > 0 && (
           <ul className="flex flex-col gap-1">
-            {archivos.map((a) => (
+            {archivos.map((a, i) => (
               <li key={a.id} className="flex items-center gap-2 text-sm text-zinc-600">
-                <span className="flex-1">{a.nombre}</span>
+                {archivos.length > 1 && (
+                  <span className="flex flex-col">
+                    <button
+                      type="button"
+                      onClick={() => moverArchivo(a.id, -1)}
+                      disabled={i === 0}
+                      className="text-xs leading-none text-zinc-400 hover:text-zinc-700 disabled:opacity-20"
+                      aria-label={`Subir ${a.nombre}`}
+                    >
+                      ▲
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moverArchivo(a.id, 1)}
+                      disabled={i === archivos.length - 1}
+                      className="text-xs leading-none text-zinc-400 hover:text-zinc-700 disabled:opacity-20"
+                      aria-label={`Bajar ${a.nombre}`}
+                    >
+                      ▼
+                    </button>
+                  </span>
+                )}
+                <span className="flex-1">
+                  {archivos.length > 1 && `${i + 1}. `}
+                  {a.nombre}
+                </span>
                 <button
                   type="button"
                   onClick={() => quitarArchivo(a.id)}

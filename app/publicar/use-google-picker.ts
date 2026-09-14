@@ -170,9 +170,21 @@ export function useGooglePicker() {
     setArchivos((actuales) => actuales.filter((a) => a.id !== id));
   }
 
+  /** El orden de `archivos` es el orden final del carousel (ver ADR-0011) — mueve uno un lugar hacia arriba/abajo. */
+  function moverArchivo(id: string, direccion: -1 | 1) {
+    setArchivos((actuales) => {
+      const desde = actuales.findIndex((a) => a.id === id);
+      const hasta = desde + direccion;
+      if (desde === -1 || hasta < 0 || hasta >= actuales.length) return actuales;
+      const copia = [...actuales];
+      [copia[desde], copia[hasta]] = [copia[hasta], copia[desde]];
+      return copia;
+    });
+  }
+
   function limpiarSeleccion() {
     setArchivos([]);
   }
 
-  return { archivos, elegirDeDrive, quitarArchivo, limpiarSeleccion, error };
+  return { archivos, elegirDeDrive, quitarArchivo, moverArchivo, limpiarSeleccion, error };
 }
