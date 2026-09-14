@@ -64,9 +64,13 @@ async function esperarProcesamiento(
 /**
  * Segundo paso del Publicador (ver ADR-0009): el archivo ya está expuesto en
  * Storage (lo dejó `prepararArchivo` al crear la Publicación) — acá solo se
- * habla con Meta: crea el contenedor, espera el procesamiento si es video, y
- * publica. El temporal de Storage se borra siempre al terminar, haya salido
- * bien o mal.
+ * habla con Meta: crea el contenedor, espera a que Meta lo termine de
+ * procesar, y publica. Se espera siempre, no sólo para video: Meta puede
+ * devolver "Media ID is not available" (error 9007) si se llama a
+ * media_publish demasiado rápido después de crear el contenedor, incluso
+ * para una imagen sola — para imágenes esto en la práctica es casi
+ * instantáneo (un solo poll), así que no le agrega demora real. El temporal
+ * de Storage se borra siempre al terminar, haya salido bien o mal.
  */
 export async function publicarDesdeStorage(
   input: PublicarDesdeStorageInput,
@@ -75,35 +79,27 @@ export async function publicarDesdeStorage(
   const driveFileIds = input.modo === "single" ? [input.driveFileId] : input.archivos.map((a) => a.driveFileId);
 
   try {
-    const { containerId, hayVideo } =
+    const { containerId } =
       input.modo === "single"
-        ? {
-            ...(await clients.meta.createContainer(input.cuenta.igUserId, input.cuenta.accessToken, {
-              tipoPublicacion: input.tipoPublicacion,
-              media: { tipo: input.tipoMedia, url: input.storageUrl },
-              caption: input.caption,
-            })),
-            hayVideo: input.tipoMedia === "video",
-          }
-        : {
-            ...(await clients.meta.createCarouselContainer(input.cuenta.igUserId, input.cuenta.accessToken, {
-              items: input.archivos.map((a) => ({ tipo: a.tipoMedia, url: a.storageUrl })),
-              caption: input.caption,
-            })),
-            hayVideo: input.archivos.some((a) => a.tipoMedia === "video"),
-          };
+        ? await clients.meta.createContainer(input.cuenta.igUserId, input.cuenta.accessToken, {
+            tipoPublicacion: input.tipoPublicacion,
+            media: { tipo: input.tipoMedia, url: input.storageUrl },
+            caption: input.caption,
+          })
+        : await clients.meta.createCarouselContainer(input.cuenta.igUserId, input.cuenta.accessToken, {
+            items: input.archivos.map((a) => ({ tipo: a.tipoMedia, url: a.storageUrl })),
+            caption: input.caption,
+          });
 
-    if (hayVideo) {
-      const procesado = await esperarProcesamiento(
-        clients.meta,
-        input.cuenta.igUserId,
-        input.cuenta.accessToken,
-        containerId,
-        clients.esperar
-      );
-      if (!procesado.ok) {
-        return { estado: EstadoPublicacion.fallida, error: procesado.error };
-      }
+    const procesado = await esperarProcesamiento(
+      clients.meta,
+      input.cuenta.igUserId,
+      input.cuenta.accessToken,
+      containerId,
+      clients.esperar
+    );
+    if (!procesado.ok) {
+      return { estado: EstadoPublicacion.fallida, error: procesado.error };
     }
 
     const { mediaId } = await clients.meta.publishContainer(

@@ -70,7 +70,7 @@ function noEsperar() {
 }
 
 describe("publicarDesdeStorage — imagen", () => {
-  it("camino feliz: crea contenedor, publica sin pollear, y borra el temporal", async () => {
+  it("camino feliz: crea contenedor, confirma que está listo (aunque sea imagen), publica, y borra el temporal", async () => {
     const llamadas: string[] = [];
     const resultado = await publicarDesdeStorage(input(), {
       meta: fakeMeta(llamadas),
@@ -81,6 +81,7 @@ describe("publicarDesdeStorage — imagen", () => {
     expect(resultado).toEqual({ estado: "publicada", metaMediaId: "media-1" });
     expect(llamadas).toEqual([
       "meta.createContainer(ig-1, post, imagen)",
+      "meta.getContainerStatus(container-1) -> listo",
       "meta.publishContainer(ig-1, container-1)",
       "storage.borrar(drive-1)",
     ]);
@@ -181,7 +182,7 @@ describe("publicarDesdeStorage — carousel", () => {
     };
   }
 
-  it("camino feliz: crea el contenedor carousel, publica sin pollear (sólo imágenes), y borra todos los temporales", async () => {
+  it("camino feliz: crea el contenedor carousel, confirma que está listo, publica, y borra todos los temporales", async () => {
     const llamadas: string[] = [];
     const resultado = await publicarDesdeStorage(inputCarousel(), {
       meta: fakeMeta(llamadas),
@@ -192,6 +193,7 @@ describe("publicarDesdeStorage — carousel", () => {
     expect(resultado).toEqual({ estado: "publicada", metaMediaId: "media-1" });
     expect(llamadas).toEqual([
       "meta.createCarouselContainer(ig-1, [imagen,imagen])",
+      "meta.getContainerStatus(container-carousel-1) -> listo",
       "meta.publishContainer(ig-1, container-carousel-1)",
       "storage.borrar(drive-1)",
       "storage.borrar(drive-2)",
