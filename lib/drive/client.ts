@@ -8,7 +8,11 @@ import type { DriveClient } from "@/lib/publicador/types";
 export const driveClient: DriveClient = {
   async descargarArchivo(driveFileId, accessToken) {
     const res = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${driveFileId}?alt=media`,
+      // supportsAllDrives=true: sin esto, Google Drive devuelve 404 al pedir
+      // un archivo que vive en una Unidad compartida (Shared Drive) en vez de
+      // "Mi unidad" — el Picker deja navegar y elegir esos archivos igual
+      // (ver "Permitir navegar carpetas de Drive en el selector de archivos").
+      `https://www.googleapis.com/drive/v3/files/${driveFileId}?alt=media&supportsAllDrives=true`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
     if (!res.ok) {
