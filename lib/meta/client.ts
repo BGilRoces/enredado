@@ -9,8 +9,10 @@ const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function parseGraphResponse(res: Response, body: any) {
   if (!res.ok) {
-    const message = body?.error?.message ?? `Graph API respondió ${res.status}`;
-    throw new Error(message);
+    // Meta.error.message ya viene en texto legible; si no vino (respuesta
+    // rara/malformada), no mostramos el código HTTP pelado (ticket 06).
+    const motivo = body?.error?.message ?? `sin más detalle (HTTP ${res.status})`;
+    throw new Error(`Meta rechazó la solicitud: ${motivo}`);
   }
   return body;
 }

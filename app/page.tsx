@@ -25,6 +25,9 @@ export default async function DashboardPage() {
         <a href="/publicar" className="text-sm underline">
           Publicar
         </a>
+        <a href="/historial" className="text-sm underline">
+          Historial
+        </a>
       </div>
     </div>
   );
