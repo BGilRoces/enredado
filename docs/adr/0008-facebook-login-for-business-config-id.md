@@ -1,5 +1,7 @@
 # Usar Facebook Login for Business (`config_id`) en vez de `scope` en el diálogo de OAuth
 
+> **Reemplazado por [ADR-0012](0012-migrar-a-instagram-api-with-instagram-login.md)**: Meta discontinuó `instagram_basic`/`instagram_content_publish` (los permisos que pedía la Login Configuration de acá) el 27/1/2025 — este flujo nunca iba a poder publicar de verdad. Se mantiene como registro histórico de por qué se había elegido así en su momento.
+
 ADR-0001 asumía el login clásico de Facebook: una App de Meta con el producto "Facebook Login", permisos pasados como `scope` en la URL del diálogo de OAuth. Al crear la App real (tipo Business, necesaria para el resto de las decisiones de ADR-0001), el dashboard de Meta no ofrece ese use case clásico — solo expone "Manage messaging & content on Instagram" y "Manage everything on your Page", que dependen de **Facebook Login for Business**, no del login clásico.
 
 Facebook Login for Business no acepta una lista de `scope` sueltos en el diálogo de OAuth: los permisos se configuran de antemano en el dashboard de Meta como una **Login Configuration**, identificada por un `config_id`, que reemplaza al parámetro `scope` en la URL (`client_id`, `redirect_uri`, `state` y `response_type` se mantienen igual, así como el endpoint de intercambio del código por el token).

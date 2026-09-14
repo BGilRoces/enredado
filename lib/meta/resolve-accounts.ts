@@ -1,9 +1,3 @@
-export interface MetaPage {
-  id: string;
-  name: string;
-  access_token: string;
-}
-
 export interface MetaClient {
   exchangeCodeForToken(
     code: string,
@@ -12,59 +6,47 @@ export interface MetaClient {
   getLongLivedToken(
     shortLivedToken: string
   ): Promise<{ accessToken: string; expiresInSeconds: number }>;
-  getUserPages(userToken: string): Promise<MetaPage[]>;
-  getPageInstagramAccount(
-    pageId: string,
-    pageAccessToken: string
-  ): Promise<{ igUserId: string; igUsername: string } | null>;
+  /** Renovar un long-lived token ya emitido es un endpoint/grant distinto del de arriba — ver ADR-0012. */
+  refreshLongLivedToken(
+    accessToken: string
+  ): Promise<{ accessToken: string; expiresInSeconds: number }>;
+  getInstagramAccount(
+    accessToken: string
+  ): Promise<{ igUserId: string; igUsername: string }>;
 }
 
 export interface ResolvedAccount {
   nombre: string;
   igUserId: string;
   igUsername: string;
-  pageId: string;
   accessToken: string;
   tokenExpiraEl: Date;
 }
 
 /**
- * Dado el `code` que Meta manda al callback de OAuth, resuelve todas las
- * Cuentas de Instagram vinculadas a las Páginas de Facebook que el usuario
- * autorizó. Las Páginas sin una Cuenta de Instagram vinculada se descartan.
+ * Dado el `code` que Instagram manda al callback de OAuth, resuelve la
+ * Cuenta de Instagram que se logueó (ver ADR-0012: Business Login for
+ * Instagram autentica una sola Cuenta por vez, a diferencia del flujo viejo
+ * que traía todas las Páginas de Facebook que administraba el usuario).
  */
-export async function resolveInstagramAccounts(
+export async function resolveInstagramAccount(
   code: string,
   redirectUri: string,
   client: MetaClient
-): Promise<ResolvedAccount[]> {
+): Promise<ResolvedAccount> {
   const { accessToken: shortLivedToken } = await client.exchangeCodeForToken(
     code,
     redirectUri
   );
-  const { accessToken: userToken, expiresInSeconds } =
+  const { accessToken, expiresInSeconds } =
     await client.getLongLivedToken(shortLivedToken);
-  const pages = await client.getUserPages(userToken);
+  const { igUserId, igUsername } = await client.getInstagramAccount(accessToken);
 
-  const resolved: ResolvedAccount[] = [];
-  const tokenExpiraEl = new Date(Date.now() + expiresInSeconds * 1000);
-
-  for (const page of pages) {
-    const igAccount = await client.getPageInstagramAccount(
-      page.id,
-      page.access_token
-    );
-    if (!igAccount) continue;
-
-    resolved.push({
-      nombre: page.name,
-      igUserId: igAccount.igUserId,
-      igUsername: igAccount.igUsername,
-      pageId: page.id,
-      accessToken: page.access_token,
-      tokenExpiraEl,
-    });
-  }
-
-  return resolved;
+  return {
+    nombre: igUsername,
+    igUserId,
+    igUsername,
+    accessToken,
+    tokenExpiraEl: new Date(Date.now() + expiresInSeconds * 1000),
+  };
 }

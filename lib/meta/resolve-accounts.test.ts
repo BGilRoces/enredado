@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { resolveInstagramAccounts, type MetaClient } from "./resolve-accounts";
+import { resolveInstagramAccount, type MetaClient } from "./resolve-accounts";
 
 function fakeClient(overrides: Partial<MetaClient> = {}): MetaClient {
   return {
@@ -10,61 +10,31 @@ function fakeClient(overrides: Partial<MetaClient> = {}): MetaClient {
       accessToken: "long-lived-token",
       expiresInSeconds: 60 * 24 * 60 * 60,
     })),
-    getUserPages: vi.fn(async () => []),
-    getPageInstagramAccount: vi.fn(async () => null),
+    refreshLongLivedToken: vi.fn(async () => ({
+      accessToken: "long-lived-token",
+      expiresInSeconds: 60 * 24 * 60 * 60,
+    })),
+    getInstagramAccount: vi.fn(async () => ({
+      igUserId: "ig-1",
+      igUsername: "biashop.ok",
+    })),
     ...overrides,
   };
 }
 
-describe("resolveInstagramAccounts", () => {
-  it("devuelve una Cuenta por cada Página con una Cuenta de Instagram vinculada", async () => {
-    const client = fakeClient({
-      getUserPages: vi.fn(async () => [
-        { id: "page-1", name: "Biashop", access_token: "page-1-token" },
-      ]),
-      getPageInstagramAccount: vi.fn(async () => ({
-        igUserId: "ig-1",
-        igUsername: "biashop.ok",
-      })),
+describe("resolveInstagramAccount", () => {
+  it("resuelve la Cuenta de Instagram logueada directo (sin Página de Facebook, ver ADR-0012)", async () => {
+    const client = fakeClient();
+
+    const result = await resolveInstagramAccount("auth-code", "https://enredado/api/meta/callback", client);
+
+    expect(result).toEqual({
+      nombre: "biashop.ok",
+      igUserId: "ig-1",
+      igUsername: "biashop.ok",
+      accessToken: "long-lived-token",
+      tokenExpiraEl: expect.any(Date),
     });
-
-    const result = await resolveInstagramAccounts("auth-code", "https://enredado/api/meta/callback", client);
-
-    expect(result).toEqual([
-      {
-        nombre: "Biashop",
-        igUserId: "ig-1",
-        igUsername: "biashop.ok",
-        pageId: "page-1",
-        accessToken: "page-1-token",
-        tokenExpiraEl: expect.any(Date),
-      },
-    ]);
-  });
-
-  it("descarta las Páginas que no tienen ninguna Cuenta de Instagram vinculada", async () => {
-    const client = fakeClient({
-      getUserPages: vi.fn(async () => [
-        { id: "page-1", name: "Sin IG", access_token: "t1" },
-        { id: "page-2", name: "Con IG", access_token: "t2" },
-      ]),
-      getPageInstagramAccount: vi.fn(async (pageId: string) =>
-        pageId === "page-2" ? { igUserId: "ig-2", igUsername: "con.ig" } : null
-      ),
-    });
-
-    const result = await resolveInstagramAccounts("auth-code", "https://enredado/api/meta/callback", client);
-
-    expect(result).toHaveLength(1);
-    expect(result[0].pageId).toBe("page-2");
-  });
-
-  it("devuelve una lista vacía si el usuario no maneja ninguna Página", async () => {
-    const client = fakeClient({ getUserPages: vi.fn(async () => []) });
-
-    const result = await resolveInstagramAccounts("auth-code", "https://enredado/api/meta/callback", client);
-
-    expect(result).toEqual([]);
   });
 
   it("propaga el error si el intercambio del code por un token falla", async () => {
@@ -75,7 +45,19 @@ describe("resolveInstagramAccounts", () => {
     });
 
     await expect(
-      resolveInstagramAccounts("code-vencido", "https://enredado/api/meta/callback", client)
+      resolveInstagramAccount("code-vencido", "https://enredado/api/meta/callback", client)
     ).rejects.toThrow("invalid_grant");
+  });
+
+  it("propaga el error si la cuenta no es Business/Creator (getInstagramAccount falla)", async () => {
+    const client = fakeClient({
+      getInstagramAccount: vi.fn(async () => {
+        throw new Error("cuenta personal, no profesional");
+      }),
+    });
+
+    await expect(
+      resolveInstagramAccount("auth-code", "https://enredado/api/meta/callback", client)
+    ).rejects.toThrow("cuenta personal, no profesional");
   });
 });

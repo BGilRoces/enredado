@@ -1,5 +1,5 @@
 import { TipoPublicacion } from "@prisma/client";
-import type { MetaClient, MetaPage } from "./resolve-accounts";
+import type { MetaClient } from "./resolve-accounts";
 import type {
   CrearContenedorCarouselInput,
   CrearContenedorInput,
@@ -9,7 +9,8 @@ import type {
 import { requireEnv } from "@/lib/env";
 import { GRAPH_VERSION } from "./config";
 
-const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
+/** Content publishing sigue versionado igual que antes (ver ADR-0012) — sólo cambia el host. */
+const INSTAGRAM_GRAPH_BASE = `https://graph.instagram.com/${GRAPH_VERSION}`;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function parseGraphResponse(res: Response, body: any) {
@@ -22,41 +23,47 @@ function parseGraphResponse(res: Response, body: any) {
   return body;
 }
 
-async function graphGet(path: string, params: Record<string, string>) {
-  const url = new URL(`${GRAPH_BASE}${path}`);
+async function graphGet(url: string, params: Record<string, string>) {
+  const target = new URL(url);
   for (const [key, value] of Object.entries(params)) {
-    url.searchParams.set(key, value);
+    target.searchParams.set(key, value);
   }
-  const res = await fetch(url);
+  const res = await fetch(target);
   return parseGraphResponse(res, await res.json());
 }
 
-async function graphPost(path: string, params: Record<string, string>) {
-  const res = await fetch(`${GRAPH_BASE}${path}`, {
+async function graphPost(url: string, params: Record<string, string>) {
+  const res = await fetch(url, {
     method: "POST",
     body: new URLSearchParams(params),
   });
   return parseGraphResponse(res, await res.json());
 }
 
-/** Cliente real contra la Graph API de Meta. Ver lib/meta/resolve-accounts.ts para el uso. */
+/**
+ * Cliente real de Business Login for Instagram (producto "Instagram API with
+ * Instagram Login" de Meta, ver ADR-0012). Reemplaza el login clásico vía
+ * Facebook Page — acá se loguea directo con la Cuenta de Instagram, un id de
+ * app (`INSTAGRAM_APP_ID`/`INSTAGRAM_APP_SECRET`) propio y distinto del de
+ * Facebook. Ver lib/meta/resolve-accounts.ts para el uso.
+ */
 export const metaClient: MetaClient = {
   async exchangeCodeForToken(code, redirectUri) {
-    const body = await graphGet("/oauth/access_token", {
-      client_id: requireEnv("META_APP_ID"),
-      client_secret: requireEnv("META_APP_SECRET"),
+    const body = await graphPost("https://api.instagram.com/oauth/access_token", {
+      client_id: requireEnv("INSTAGRAM_APP_ID"),
+      client_secret: requireEnv("INSTAGRAM_APP_SECRET"),
+      grant_type: "authorization_code",
       redirect_uri: redirectUri,
       code,
     });
-    return { accessToken: body.access_token as string };
+    return { accessToken: body.data?.[0]?.access_token as string };
   },
 
   async getLongLivedToken(shortLivedToken) {
-    const body = await graphGet("/oauth/access_token", {
-      grant_type: "fb_exchange_token",
-      client_id: requireEnv("META_APP_ID"),
-      client_secret: requireEnv("META_APP_SECRET"),
-      fb_exchange_token: shortLivedToken,
+    const body = await graphGet("https://graph.instagram.com/access_token", {
+      grant_type: "ig_exchange_token",
+      client_secret: requireEnv("INSTAGRAM_APP_SECRET"),
+      access_token: shortLivedToken,
     });
     return {
       accessToken: body.access_token as string,
@@ -64,19 +71,29 @@ export const metaClient: MetaClient = {
     };
   },
 
-  async getUserPages(userToken) {
-    const body = await graphGet("/me/accounts", { access_token: userToken });
-    return (body.data ?? []) as MetaPage[];
+  /**
+   * Endpoint y grant distintos del de arriba (ver ADR-0012): sólo sirve
+   * sobre un long-lived ya emitido, de al menos 24hs — no son
+   * intercambiables como el `fb_exchange_token` de Facebook, que hacía las
+   * dos cosas con el mismo llamado.
+   */
+  async refreshLongLivedToken(accessToken) {
+    const body = await graphGet("https://graph.instagram.com/refresh_access_token", {
+      grant_type: "ig_refresh_token",
+      access_token: accessToken,
+    });
+    return {
+      accessToken: body.access_token as string,
+      expiresInSeconds: (body.expires_in as number) ?? 60 * 24 * 60 * 60,
+    };
   },
 
-  async getPageInstagramAccount(pageId, pageAccessToken) {
-    const body = await graphGet(`/${pageId}`, {
-      fields: "instagram_business_account{id,username}",
-      access_token: pageAccessToken,
+  async getInstagramAccount(accessToken) {
+    const body = await graphGet(`${INSTAGRAM_GRAPH_BASE}/me`, {
+      fields: "id,username",
+      access_token: accessToken,
     });
-    const ig = body.instagram_business_account;
-    if (!ig) return null;
-    return { igUserId: ig.id as string, igUsername: ig.username as string };
+    return { igUserId: body.id as string, igUsername: body.username as string };
   },
 };
 
@@ -123,10 +140,10 @@ function containerStatusFromGraph(statusCode: string): EstadoContenedor {
   return "error"; // ERROR, EXPIRED, o cualquier otro valor inesperado.
 }
 
-/** Cliente real de Content Publishing contra la Graph API. Ver lib/publicador/publicar.ts. */
+/** Cliente real de Content Publishing contra graph.instagram.com (ver ADR-0012). Ver lib/publicador/publicar.ts. */
 export const metaPublishClient: MetaPublishClient = {
   async createContainer(igUserId, accessToken, input) {
-    const body = await graphPost(`/${igUserId}/media`, {
+    const body = await graphPost(`${INSTAGRAM_GRAPH_BASE}/${igUserId}/media`, {
       ...buildContainerParams(input),
       access_token: accessToken,
     });
@@ -137,14 +154,14 @@ export const metaPublishClient: MetaPublishClient = {
   async createCarouselContainer(igUserId, accessToken, input) {
     const childIds: string[] = [];
     for (const item of input.items) {
-      const body = await graphPost(`/${igUserId}/media`, {
+      const body = await graphPost(`${INSTAGRAM_GRAPH_BASE}/${igUserId}/media`, {
         ...buildCarouselChildParams(item),
         access_token: accessToken,
       });
       childIds.push(body.id as string);
     }
 
-    const body = await graphPost(`/${igUserId}/media`, {
+    const body = await graphPost(`${INSTAGRAM_GRAPH_BASE}/${igUserId}/media`, {
       media_type: "CAROUSEL",
       children: childIds.join(","),
       ...(input.caption ? { caption: input.caption } : {}),
@@ -154,7 +171,7 @@ export const metaPublishClient: MetaPublishClient = {
   },
 
   async getContainerStatus(igUserId, accessToken, containerId) {
-    const body = await graphGet(`/${containerId}`, {
+    const body = await graphGet(`${INSTAGRAM_GRAPH_BASE}/${containerId}`, {
       fields: "status_code",
       access_token: accessToken,
     });
@@ -162,7 +179,7 @@ export const metaPublishClient: MetaPublishClient = {
   },
 
   async publishContainer(igUserId, accessToken, containerId) {
-    const body = await graphPost(`/${igUserId}/media_publish`, {
+    const body = await graphPost(`${INSTAGRAM_GRAPH_BASE}/${igUserId}/media_publish`, {
       creation_id: containerId,
       access_token: accessToken,
     });

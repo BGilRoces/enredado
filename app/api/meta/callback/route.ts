@@ -3,7 +3,7 @@ import { EstadoCuenta, type Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { encryptToken } from "@/lib/crypto/token-cipher";
 import { metaClient } from "@/lib/meta/client";
-import { resolveInstagramAccounts, type ResolvedAccount } from "@/lib/meta/resolve-accounts";
+import { resolveInstagramAccount, type ResolvedAccount } from "@/lib/meta/resolve-accounts";
 import { decideCallbackOutcome } from "@/lib/meta/callback-outcome";
 import { APP_URL, OAUTH_STATE_COOKIE } from "@/lib/meta/config";
 
@@ -22,7 +22,6 @@ function cuentaData(cuenta: ResolvedAccount): Prisma.CuentaCreateInput {
     nombre: cuenta.nombre,
     igUserId: cuenta.igUserId,
     igUsername: cuenta.igUsername,
-    pageId: cuenta.pageId,
     accessTokenEncriptado: encryptToken(cuenta.accessToken),
     tokenExpiraEl: cuenta.tokenExpiraEl,
     estado: EstadoCuenta.conectada,
@@ -45,37 +44,27 @@ export async function GET(request: NextRequest) {
 
   const redirectUri = new URL("/api/meta/callback", APP_URL).toString();
 
-  let resolved: ResolvedAccount[];
+  let resolved: ResolvedAccount;
   try {
-    resolved = await resolveInstagramAccounts(outcome.code, redirectUri, metaClient);
+    resolved = await resolveInstagramAccount(outcome.code, redirectUri, metaClient);
   } catch {
     return redirectToCuentas({
-      error: "Meta rechazó la conexión. Revisá que la cuenta sea Business/Creator y esté vinculada a una Página de Facebook.",
-    });
-  }
-
-  if (resolved.length === 0) {
-    return redirectToCuentas({
-      error: "No encontramos ninguna Cuenta de Instagram Business/Creator vinculada a tus Páginas de Facebook.",
+      error: "Meta rechazó la conexión. Revisá que la cuenta sea Business/Creator.",
     });
   }
 
   try {
-    await prisma.$transaction(
-      resolved.map((cuenta) => {
-        const data = cuentaData(cuenta);
-        return prisma.cuenta.upsert({
-          where: { igUserId: cuenta.igUserId },
-          create: data,
-          update: data,
-        });
-      })
-    );
+    const data = cuentaData(resolved);
+    await prisma.cuenta.upsert({
+      where: { igUserId: resolved.igUserId },
+      create: data,
+      update: data,
+    });
   } catch {
     return redirectToCuentas({
-      error: "Conectamos con Meta pero no pudimos guardar la(s) Cuenta(s). Probá de nuevo.",
+      error: "Conectamos con Meta pero no pudimos guardar la Cuenta. Probá de nuevo.",
     });
   }
 
-  return redirectToCuentas({ connected: String(resolved.length) });
+  return redirectToCuentas({ connected: "1" });
 }

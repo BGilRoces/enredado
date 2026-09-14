@@ -2,11 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { renovarToken } from "./renovar-token";
 import type { MetaClient } from "@/lib/meta/resolve-accounts";
 
-function fakeMetaClient(opts: { falla?: string } = {}): Pick<MetaClient, "getLongLivedToken"> {
+function fakeMetaClient(opts: { falla?: string } = {}): Pick<MetaClient, "refreshLongLivedToken"> {
   return {
-    async getLongLivedToken(shortLivedToken) {
+    async refreshLongLivedToken(accessToken) {
       if (opts.falla) throw new Error(opts.falla);
-      return { accessToken: `renovado-${shortLivedToken}`, expiresInSeconds: 60 * 24 * 60 * 60 };
+      return { accessToken: `renovado-${accessToken}`, expiresInSeconds: 60 * 24 * 60 * 60 };
     },
   };
 }
