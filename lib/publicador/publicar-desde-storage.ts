@@ -1,6 +1,6 @@
 import { EstadoPublicacion, TipoPublicacion } from "@prisma/client";
 import type { MetaPublishClient, ResultadoPublicacion, StorageClient, TipoMedia } from "./types";
-import { mensajeDeError } from "./mensaje-de-error";
+import { mensajeDeError } from "@/lib/mensaje-de-error";
 
 const MAX_INTENTOS_PROCESAMIENTO = 30;
 const INTERVALO_PROCESAMIENTO_MS = 5000;

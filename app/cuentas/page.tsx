@@ -45,8 +45,17 @@ export default async function CuentasPage({
             >
               <div>
                 <p className="font-medium">{cuenta.nombre}</p>
-                <p className="text-sm text-zinc-500">
-                  @{cuenta.igUsername} · {cuenta.estado}
+                <p
+                  className={
+                    cuenta.estado === EstadoCuenta.necesitaReconexion
+                      ? "text-sm text-red-700"
+                      : "text-sm text-zinc-500"
+                  }
+                >
+                  @{cuenta.igUsername} ·{" "}
+                  {cuenta.estado === EstadoCuenta.necesitaReconexion
+                    ? "necesita reconexión"
+                    : cuenta.estado}
                 </p>
               </div>
               {cuenta.estado === EstadoCuenta.conectada && (
@@ -63,6 +72,14 @@ export default async function CuentasPage({
                     Desconectar
                   </button>
                 </form>
+              )}
+              {cuenta.estado === EstadoCuenta.necesitaReconexion && (
+                <a
+                  href="/api/meta/connect"
+                  className="rounded bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white"
+                >
+                  Reconectar
+                </a>
               )}
             </li>
           ))}

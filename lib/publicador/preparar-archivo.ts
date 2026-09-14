@@ -1,6 +1,6 @@
 import { TipoPublicacion } from "@prisma/client";
 import type { DriveClient, PrepararResultado, StorageClient, TipoMedia } from "./types";
-import { mensajeDeError } from "./mensaje-de-error";
+import { mensajeDeError } from "@/lib/mensaje-de-error";
 
 /** Instagram solo acepta JPEG para imágenes (PNG/WebP/GIF son rechazados). */
 const FORMATOS_IMAGEN_SOPORTADOS = new Set(["image/jpeg"]);

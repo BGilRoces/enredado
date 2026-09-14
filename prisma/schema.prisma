@@ -13,6 +13,10 @@ datasource db {
 enum EstadoCuenta {
   conectada
   desconectada
+  // Meta rechazó la renovación del token (ej.: acceso revocado desde Meta).
+  // Distinta de "desconectada": acá el dueño no la desconectó a propósito,
+  // hay que reconectarla (ver ADR-0010 / ticket 07).
+  necesitaReconexion
 }
 
 model Cuenta {
