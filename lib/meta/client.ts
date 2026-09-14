@@ -1,5 +1,6 @@
+import { TipoPublicacion } from "@prisma/client";
 import type { MetaClient, MetaPage } from "./resolve-accounts";
-import type { MetaPublishClient } from "@/lib/publicador/types";
+import type { CrearContenedorInput, EstadoContenedor, MetaPublishClient } from "@/lib/publicador/types";
 import { requireEnv } from "@/lib/env";
 import { GRAPH_VERSION } from "./config";
 
@@ -72,15 +73,53 @@ export const metaClient: MetaClient = {
   },
 };
 
-/** Cliente real de Content Publishing contra la Graph API. Ver lib/publicador/publicar-post.ts. */
+/** Traduce nuestro (tipoPublicacion, tipo de media) a los params de la Graph API. */
+function buildContainerParams(input: CrearContenedorInput): Record<string, string> {
+  const params: Record<string, string> = {};
+
+  if (input.media.tipo === "video") {
+    params.video_url = input.media.url;
+  } else {
+    params.image_url = input.media.url;
+  }
+
+  if (input.tipoPublicacion === TipoPublicacion.reel) {
+    params.media_type = "REELS";
+  } else if (input.tipoPublicacion === TipoPublicacion.historia) {
+    params.media_type = "STORIES";
+  } else if (input.media.tipo === "video") {
+    params.media_type = "VIDEO"; // Post + imagen no lleva media_type (default: foto de feed).
+  }
+
+  if (input.caption) {
+    params.caption = input.caption;
+  }
+
+  return params;
+}
+
+function containerStatusFromGraph(statusCode: string): EstadoContenedor {
+  if (statusCode === "FINISHED" || statusCode === "PUBLISHED") return "listo";
+  if (statusCode === "IN_PROGRESS") return "en_progreso";
+  return "error"; // ERROR, EXPIRED, o cualquier otro valor inesperado.
+}
+
+/** Cliente real de Content Publishing contra la Graph API. Ver lib/publicador/publicar.ts. */
 export const metaPublishClient: MetaPublishClient = {
-  async createImageContainer(igUserId, accessToken, params) {
+  async createContainer(igUserId, accessToken, input) {
     const body = await graphPost(`/${igUserId}/media`, {
-      image_url: params.imageUrl,
-      ...(params.caption ? { caption: params.caption } : {}),
+      ...buildContainerParams(input),
       access_token: accessToken,
     });
     return { containerId: body.id as string };
+  },
+
+  async getContainerStatus(igUserId, accessToken, containerId) {
+    const body = await graphGet(`/${containerId}`, {
+      fields: "status_code",
+      access_token: accessToken,
+    });
+    return containerStatusFromGraph(body.status_code as string);
   },
 
   async publishContainer(igUserId, accessToken, containerId) {

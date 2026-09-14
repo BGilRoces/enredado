@@ -41,7 +41,7 @@ declare global {
       };
       picker: {
         PickerBuilder: new () => GooglePickerBuilder;
-        ViewId: { DOCS_IMAGES: unknown };
+        ViewId: { DOCS_IMAGES: unknown; DOCS_VIDEOS: unknown };
         Action: { PICKED: string };
       };
     };
@@ -94,6 +94,7 @@ export function useGooglePicker() {
     window.gapi.load("picker", () => {
       const picker = new google.picker.PickerBuilder()
         .addView(google.picker.ViewId.DOCS_IMAGES)
+        .addView(google.picker.ViewId.DOCS_VIDEOS)
         .setOAuthToken(accessToken)
         .setDeveloperKey(process.env.NEXT_PUBLIC_GOOGLE_API_KEY ?? "")
         .setCallback((data: GooglePickerResponse) => {

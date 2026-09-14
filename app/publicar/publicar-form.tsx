@@ -10,9 +10,18 @@ interface CuentaOption {
   igUsername: string;
 }
 
+type TipoPublicacionOption = "post" | "historia" | "reel";
+
+const TIPOS: { value: TipoPublicacionOption; label: string }[] = [
+  { value: "post", label: "Post" },
+  { value: "historia", label: "Historia" },
+  { value: "reel", label: "Reel" },
+];
+
 export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
   const { archivo, elegirDeDrive, error: errorPicker } = useGooglePicker();
   const [cuentaId, setCuentaId] = useState(cuentas[0]?.id ?? "");
+  const [tipoPublicacion, setTipoPublicacion] = useState<TipoPublicacionOption>("post");
   const [caption, setCaption] = useState("");
   const [estado, setEstado] = useState<"idle" | "publicando" | "publicada" | "fallida">("idle");
   const [errorPublicar, setErrorPublicar] = useState<string | null>(null);
@@ -29,6 +38,7 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
         cuentaId,
         driveFileId: archivo.id,
         driveAccessToken: archivo.accessToken,
+        tipoPublicacion,
         caption,
       });
       if (resultado.estado === "publicada") {
@@ -51,10 +61,28 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
           onClick={elegirDeDrive}
           className="rounded border border-zinc-300 px-3 py-2 text-sm font-medium"
         >
-          Elegir imagen de Google Drive
+          Elegir de Google Drive
         </button>
         {archivo && <span className="text-sm text-zinc-600">{archivo.nombre}</span>}
       </div>
+
+      <label className="flex flex-col gap-1 text-sm">
+        Tipo de Publicación
+        <select
+          value={tipoPublicacion}
+          onChange={(e) => setTipoPublicacion(e.target.value as TipoPublicacionOption)}
+          className="rounded border border-zinc-300 p-2"
+        >
+          {TIPOS.map((tipo) => (
+            <option key={tipo.value} value={tipo.value}>
+              {tipo.label}
+            </option>
+          ))}
+        </select>
+        {tipoPublicacion === "reel" && (
+          <span className="text-xs text-zinc-500">Un Reel siempre es video.</span>
+        )}
+      </label>
 
       <label className="flex flex-col gap-1 text-sm">
         Cuenta de Instagram
