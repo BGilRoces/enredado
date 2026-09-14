@@ -1,6 +1,11 @@
 import { TipoPublicacion } from "@prisma/client";
 import type { MetaClient, MetaPage } from "./resolve-accounts";
-import type { CrearContenedorInput, EstadoContenedor, MetaPublishClient } from "@/lib/publicador/types";
+import type {
+  CrearContenedorCarouselInput,
+  CrearContenedorInput,
+  EstadoContenedor,
+  MetaPublishClient,
+} from "@/lib/publicador/types";
 import { requireEnv } from "@/lib/env";
 import { GRAPH_VERSION } from "./config";
 
@@ -100,6 +105,18 @@ function buildContainerParams(input: CrearContenedorInput): Record<string, strin
   return params;
 }
 
+/** Params para un elemento hijo de un carousel — nunca lleva caption ni media_type de STORIES/REELS. */
+function buildCarouselChildParams(item: CrearContenedorCarouselInput["items"][number]): Record<string, string> {
+  const params: Record<string, string> = { is_carousel_item: "true" };
+  if (item.tipo === "video") {
+    params.video_url = item.url;
+    params.media_type = "VIDEO";
+  } else {
+    params.image_url = item.url;
+  }
+  return params;
+}
+
 function containerStatusFromGraph(statusCode: string): EstadoContenedor {
   if (statusCode === "FINISHED" || statusCode === "PUBLISHED") return "listo";
   if (statusCode === "IN_PROGRESS") return "en_progreso";
@@ -111,6 +128,26 @@ export const metaPublishClient: MetaPublishClient = {
   async createContainer(igUserId, accessToken, input) {
     const body = await graphPost(`/${igUserId}/media`, {
       ...buildContainerParams(input),
+      access_token: accessToken,
+    });
+    return { containerId: body.id as string };
+  },
+
+  /** Ver ADR-0011: primero un contenedor hijo por elemento, después el contenedor padre CAROUSEL con la lista de hijos. */
+  async createCarouselContainer(igUserId, accessToken, input) {
+    const childIds: string[] = [];
+    for (const item of input.items) {
+      const body = await graphPost(`/${igUserId}/media`, {
+        ...buildCarouselChildParams(item),
+        access_token: accessToken,
+      });
+      childIds.push(body.id as string);
+    }
+
+    const body = await graphPost(`/${igUserId}/media`, {
+      media_type: "CAROUSEL",
+      children: childIds.join(","),
+      ...(input.caption ? { caption: input.caption } : {}),
       access_token: accessToken,
     });
     return { containerId: body.id as string };

@@ -1,4 +1,10 @@
-import { EstadoCuenta, EstadoPublicacion, type Cuenta, type Publicacion } from "@prisma/client";
+import {
+  EstadoCuenta,
+  EstadoPublicacion,
+  type Cuenta,
+  type Publicacion,
+  type PublicacionArchivo,
+} from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { decryptToken } from "@/lib/crypto/token-cipher";
 import { decidirVencidas } from "@/lib/scheduler/decidir-vencidas";
@@ -47,7 +53,7 @@ async function procesarUna(id: string): Promise<void> {
 
   const publicacion = await prisma.publicacion.findUniqueOrThrow({
     where: { id },
-    include: { cuenta: true },
+    include: { cuenta: true, archivos: { orderBy: { orden: "asc" } } },
   });
 
   if (!publicacion.cuenta.accessTokenEncriptado || publicacion.cuenta.estado !== EstadoCuenta.conectada) {
@@ -57,7 +63,10 @@ async function procesarUna(id: string): Promise<void> {
     });
     return;
   }
-  if (!publicacion.storageUrl || !publicacion.tipoMedia) {
+  // Un carousel (ver ADR-0011) trae sus archivos en `archivos`, no en los
+  // campos sueltos de la fila padre — sólo el caso simple los necesita acá.
+  const esCarousel = publicacion.archivos.length > 0;
+  if (!esCarousel && (!publicacion.storageUrl || !publicacion.tipoMedia)) {
     await prisma.publicacion.update({
       where: { id: publicacion.id },
       data: { estado: EstadoPublicacion.fallida, error: "Falta el archivo preparado (bug interno)." },
@@ -79,20 +88,36 @@ async function procesarUna(id: string): Promise<void> {
   await publicarUna(publicacion);
 }
 
-async function publicarUna(publicacion: Publicacion & { cuenta: Cuenta }): Promise<void> {
-  // Los dos guards de arriba (Cuenta conectada, archivo preparado) ya lo garantizan acá.
+async function publicarUna(
+  publicacion: Publicacion & { cuenta: Cuenta; archivos: PublicacionArchivo[] }
+): Promise<void> {
+  const cuenta = {
+    igUserId: publicacion.cuenta.igUserId,
+    accessToken: decryptToken(publicacion.cuenta.accessTokenEncriptado!),
+  };
+
+  // Los dos guards de arriba (Cuenta conectada, archivo(s) preparado(s)) ya lo garantizan acá.
   const resultado = await publicarDesdeStorage(
-    {
-      driveFileId: publicacion.driveFileId,
-      tipoPublicacion: publicacion.tipo,
-      tipoMedia: publicacion.tipoMedia!,
-      storageUrl: publicacion.storageUrl!,
-      caption: publicacion.caption ?? undefined,
-      cuenta: {
-        igUserId: publicacion.cuenta.igUserId,
-        accessToken: decryptToken(publicacion.cuenta.accessTokenEncriptado!),
-      },
-    },
+    publicacion.archivos.length > 0
+      ? {
+          modo: "carousel",
+          archivos: publicacion.archivos.map((a) => ({
+            driveFileId: a.driveFileId,
+            tipoMedia: a.tipoMedia,
+            storageUrl: a.storageUrl,
+          })),
+          caption: publicacion.caption ?? undefined,
+          cuenta,
+        }
+      : {
+          modo: "single",
+          driveFileId: publicacion.driveFileId!,
+          tipoPublicacion: publicacion.tipo,
+          tipoMedia: publicacion.tipoMedia!,
+          storageUrl: publicacion.storageUrl!,
+          caption: publicacion.caption ?? undefined,
+          cuenta,
+        },
     { meta: metaPublishClient, storage: storageClient, esperar: esperarMs }
   );
 

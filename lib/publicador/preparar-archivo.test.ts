@@ -1,18 +1,18 @@
 import { TipoPublicacion } from "@prisma/client";
 import { describe, expect, it } from "vitest";
-import { prepararArchivo } from "./preparar-archivo";
+import { prepararArchivo, prepararArchivos } from "./preparar-archivo";
 import type { DriveClient, StorageClient } from "./types";
 
 const INPUT = { driveFileId: "drive-1", driveAccessToken: "token-drive", tipoPublicacion: TipoPublicacion.post };
 
 function fakeDrive(
   llamadas: string[] = [],
-  opts: { mimeType?: string; falla?: string } = {}
+  opts: { mimeType?: string; falla?: string; fallaEnId?: string } = {}
 ): DriveClient {
   return {
     async descargarArchivo(driveFileId, accessToken) {
       llamadas.push(`drive.descargarArchivo(${driveFileId}, ${accessToken})`);
-      if (opts.falla) throw new Error(opts.falla);
+      if (opts.falla || opts.fallaEnId === driveFileId) throw new Error(opts.falla ?? "formato rechazado");
       return { data: Buffer.from("contenido"), mimeType: opts.mimeType ?? "image/jpeg" };
     },
   };
@@ -116,5 +116,41 @@ describe("prepararArchivo", () => {
     });
 
     expect(resultado).toEqual({ ok: false, error: "Supabase Storage: bucket lleno" });
+  });
+});
+
+describe("prepararArchivos", () => {
+  const INPUT_MULTI = {
+    archivos: [{ driveFileId: "drive-1" }, { driveFileId: "drive-2" }],
+    driveAccessToken: "token-drive",
+    tipoPublicacion: TipoPublicacion.post,
+  };
+
+  it("camino feliz: prepara todos los archivos en orden", async () => {
+    const llamadas: string[] = [];
+    const resultado = await prepararArchivos(INPUT_MULTI, {
+      drive: fakeDrive(llamadas),
+      storage: fakeStorage(llamadas),
+    });
+
+    expect(resultado).toEqual({
+      ok: true,
+      archivos: [
+        { driveFileId: "drive-1", tipoMedia: "imagen", storageUrl: "https://storage.example/drive-1" },
+        { driveFileId: "drive-2", tipoMedia: "imagen", storageUrl: "https://storage.example/drive-2" },
+      ],
+    });
+  });
+
+  it("si uno falla a mitad de la lista, borra los que ya se subieron y devuelve el error", async () => {
+    const llamadas: string[] = [];
+    const resultado = await prepararArchivos(
+      { ...INPUT_MULTI, archivos: [{ driveFileId: "drive-1" }, { driveFileId: "drive-2" }, { driveFileId: "drive-3" }] },
+      { drive: fakeDrive(llamadas, { fallaEnId: "drive-2" }), storage: fakeStorage(llamadas) }
+    );
+
+    expect(resultado).toEqual({ ok: false, error: "formato rechazado" });
+    expect(llamadas).toContain("storage.borrar(drive-1)");
+    expect(llamadas).not.toContain("storage.subir(drive-3, image/jpeg)");
   });
 });

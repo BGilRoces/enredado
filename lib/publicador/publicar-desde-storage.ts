@@ -5,15 +5,27 @@ import { mensajeDeError } from "@/lib/mensaje-de-error";
 const MAX_INTENTOS_PROCESAMIENTO = 30;
 const INTERVALO_PROCESAMIENTO_MS = 5000;
 
-export interface PublicarDesdeStorageInput {
+interface PublicarDesdeStorageInputComun {
+  caption?: string;
+  cuenta: { igUserId: string; accessToken: string };
+}
+
+export interface PublicarDesdeStorageInputSimple extends PublicarDesdeStorageInputComun {
+  modo: "single";
   /** Mismo id usado como key en Storage al prepararla (ver preparar-archivo.ts) — hace falta para borrarlo. */
   driveFileId: string;
   tipoPublicacion: TipoPublicacion;
   tipoMedia: TipoMedia;
   storageUrl: string;
-  caption?: string;
-  cuenta: { igUserId: string; accessToken: string };
 }
+
+/** Post con 2-10 archivos (ver ADR-0011) — Historia/Reel nunca llegan acá, la Graph API no tiene carousel para esos tipos. */
+export interface PublicarDesdeStorageInputCarousel extends PublicarDesdeStorageInputComun {
+  modo: "carousel";
+  archivos: { driveFileId: string; tipoMedia: TipoMedia; storageUrl: string }[];
+}
+
+export type PublicarDesdeStorageInput = PublicarDesdeStorageInputSimple | PublicarDesdeStorageInputCarousel;
 
 export interface PublicarDesdeStorageClients {
   meta: MetaPublishClient;
@@ -60,18 +72,28 @@ export async function publicarDesdeStorage(
   input: PublicarDesdeStorageInput,
   clients: PublicarDesdeStorageClients
 ): Promise<ResultadoPublicacion> {
-  try {
-    const { containerId } = await clients.meta.createContainer(
-      input.cuenta.igUserId,
-      input.cuenta.accessToken,
-      {
-        tipoPublicacion: input.tipoPublicacion,
-        media: { tipo: input.tipoMedia, url: input.storageUrl },
-        caption: input.caption,
-      }
-    );
+  const driveFileIds = input.modo === "single" ? [input.driveFileId] : input.archivos.map((a) => a.driveFileId);
 
-    if (input.tipoMedia === "video") {
+  try {
+    const { containerId, hayVideo } =
+      input.modo === "single"
+        ? {
+            ...(await clients.meta.createContainer(input.cuenta.igUserId, input.cuenta.accessToken, {
+              tipoPublicacion: input.tipoPublicacion,
+              media: { tipo: input.tipoMedia, url: input.storageUrl },
+              caption: input.caption,
+            })),
+            hayVideo: input.tipoMedia === "video",
+          }
+        : {
+            ...(await clients.meta.createCarouselContainer(input.cuenta.igUserId, input.cuenta.accessToken, {
+              items: input.archivos.map((a) => ({ tipo: a.tipoMedia, url: a.storageUrl })),
+              caption: input.caption,
+            })),
+            hayVideo: input.archivos.some((a) => a.tipoMedia === "video"),
+          };
+
+    if (hayVideo) {
       const procesado = await esperarProcesamiento(
         clients.meta,
         input.cuenta.igUserId,
@@ -94,6 +116,6 @@ export async function publicarDesdeStorage(
     return fallida(error);
   } finally {
     // Limpieza best-effort: si falla, no debe tapar el resultado ya decidido arriba.
-    await clients.storage.borrar(input.driveFileId).catch(() => {});
+    await Promise.all(driveFileIds.map((id) => clients.storage.borrar(id).catch(() => {})));
   }
 }

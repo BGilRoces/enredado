@@ -20,12 +20,22 @@ const TIPOS: { value: TipoPublicacionOption; label: string }[] = [
 
 const MENSAJE_POR_ESTADO: Record<string, string> = {
   publicada: "Publicado en Instagram.",
-  pendiente: "En cola — se va a publicar en un momento.",
-  publicando: "Publicando ahora mismo...",
+  pendiente: "en cola",
+  publicando: "publicando ahora",
+  fallida: "falló",
 };
 
+/** Límite fijo de Instagram: un carousel admite entre 2 y 10 elementos. */
+const MAX_ARCHIVOS_CAROUSEL = 10;
+
 export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
-  const { archivo, elegirDeDrive, error: errorPicker } = useGooglePicker();
+  const {
+    archivos,
+    elegirDeDrive,
+    quitarArchivo,
+    limpiarSeleccion,
+    error: errorPicker,
+  } = useGooglePicker();
   const [cuentaId, setCuentaId] = useState(cuentas[0]?.id ?? "");
   const [tipoPublicacion, setTipoPublicacion] = useState<TipoPublicacionOption>("post");
   const [caption, setCaption] = useState("");
@@ -36,27 +46,41 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
   const [errorPublicar, setErrorPublicar] = useState<string | null>(null);
 
   const error = errorPublicar ?? errorPicker;
+  const demasiadosParaCarousel = tipoPublicacion === "post" && archivos.length > MAX_ARCHIVOS_CAROUSEL;
+
+  function onTipoPublicacionChange(tipo: TipoPublicacionOption) {
+    setTipoPublicacion(tipo);
+    limpiarSeleccion();
+  }
 
   async function onSubmit(formEvent: React.FormEvent) {
     formEvent.preventDefault();
-    if (!archivo) return;
+    if (archivos.length === 0 || demasiadosParaCarousel) return;
     setEnviando(true);
     setErrorPublicar(null);
     setMensaje(null);
     try {
-      const resultado = await crearPublicacion({
+      const resultados = await crearPublicacion({
         cuentaId,
-        driveFileId: archivo.id,
-        driveAccessToken: archivo.accessToken,
+        archivos: archivos.map((a) => ({ driveFileId: a.id })),
+        driveAccessToken: archivos[0].accessToken,
         tipoPublicacion,
         caption,
         programadaPara: cuando === "programar" && programadaPara ? new Date(programadaPara) : null,
       });
-      if (resultado.estado === "fallida") {
-        setErrorPublicar(resultado.error ?? "Falló, sin más detalle.");
+      const fallidas = resultados.filter((r) => r.estado === "fallida");
+      if (fallidas.length === resultados.length) {
+        setErrorPublicar(fallidas[0]?.error ?? "Falló, sin más detalle.");
       } else {
-        setMensaje(MENSAJE_POR_ESTADO[resultado.estado] ?? resultado.estado);
+        const resumen = resultados
+          .map((r) => MENSAJE_POR_ESTADO[r.estado] ?? r.estado)
+          .join(", ");
+        setMensaje(resultados.length > 1 ? `${resultados.length} Publicaciones: ${resumen}.` : `${resumen}.`);
+        if (fallidas.length > 0) {
+          setErrorPublicar(fallidas.map((f) => f.error).filter(Boolean).join(" / "));
+        }
       }
+      limpiarSeleccion();
     } catch (err) {
       setErrorPublicar(err instanceof Error ? err.message : String(err));
     } finally {
@@ -66,22 +90,53 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-2">
         <button
           type="button"
-          onClick={elegirDeDrive}
-          className="rounded border border-zinc-300 px-3 py-2 text-sm font-medium"
+          onClick={() => elegirDeDrive({ multiple: tipoPublicacion !== "reel" })}
+          className="self-start rounded border border-zinc-300 px-3 py-2 text-sm font-medium"
         >
           Elegir de Google Drive
         </button>
-        {archivo && <span className="text-sm text-zinc-600">{archivo.nombre}</span>}
+        {archivos.length > 0 && (
+          <ul className="flex flex-col gap-1">
+            {archivos.map((a) => (
+              <li key={a.id} className="flex items-center gap-2 text-sm text-zinc-600">
+                <span className="flex-1">{a.nombre}</span>
+                <button
+                  type="button"
+                  onClick={() => quitarArchivo(a.id)}
+                  className="text-xs text-zinc-400 hover:text-zinc-700"
+                  aria-label={`Sacar ${a.nombre}`}
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {tipoPublicacion === "post" && archivos.length > 1 && !demasiadosParaCarousel && (
+          <span className="text-xs text-zinc-500">
+            Se van a subir como un carousel ({archivos.length} elementos).
+          </span>
+        )}
+        {demasiadosParaCarousel && (
+          <span className="text-xs text-red-700">
+            Instagram permite hasta {MAX_ARCHIVOS_CAROUSEL} elementos por carousel — sacá alguno.
+          </span>
+        )}
+        {tipoPublicacion === "historia" && archivos.length > 1 && (
+          <span className="text-xs text-zinc-500">
+            Se van a crear {archivos.length} Historias, una por cada foto.
+          </span>
+        )}
       </div>
 
       <label className="flex flex-col gap-1 text-sm">
         Tipo de Publicación
         <select
           value={tipoPublicacion}
-          onChange={(e) => setTipoPublicacion(e.target.value as TipoPublicacionOption)}
+          onChange={(e) => onTipoPublicacionChange(e.target.value as TipoPublicacionOption)}
           className="rounded border border-zinc-300 p-2"
         >
           {TIPOS.map((tipo) => (
@@ -154,7 +209,7 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
 
       <button
         type="submit"
-        disabled={!archivo || enviando}
+        disabled={archivos.length === 0 || demasiadosParaCarousel || enviando}
         className="rounded bg-zinc-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-40"
       >
         {enviando ? "Enviando..." : cuando === "programar" ? "Programar" : "Publicar ahora"}

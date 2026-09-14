@@ -31,11 +31,22 @@ export interface CrearContenedorInput {
  */
 export type EstadoContenedor = "en_progreso" | "listo" | "error";
 
+export interface CrearContenedorCarouselInput {
+  /** 2 a 10 elementos — límite fijo de Instagram para carousels. */
+  items: MediaContenedor[];
+  caption?: string;
+}
+
 export interface MetaPublishClient {
   createContainer(
     igUserId: string,
     accessToken: string,
     input: CrearContenedorInput
+  ): Promise<{ containerId: string }>;
+  createCarouselContainer(
+    igUserId: string,
+    accessToken: string,
+    input: CrearContenedorCarouselInput
   ): Promise<{ containerId: string }>;
   getContainerStatus(
     igUserId: string,
@@ -56,4 +67,15 @@ export type ResultadoPublicacion =
 /** Resultado de bajar de Drive y subir a Storage (ADR-0009). */
 export type PrepararResultado =
   | { ok: true; tipoMedia: TipoMedia; storageUrl: string }
+  | { ok: false; error: string };
+
+export interface ArchivoPreparado {
+  driveFileId: string;
+  tipoMedia: TipoMedia;
+  storageUrl: string;
+}
+
+/** Resultado de preparar varios archivos para un carousel (ver ADR-0011). */
+export type PrepararArchivosResultado =
+  | { ok: true; archivos: ArchivoPreparado[] }
   | { ok: false; error: string };

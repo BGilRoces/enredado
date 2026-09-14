@@ -17,6 +17,7 @@ interface GooglePickerResponse {
 
 interface GooglePickerBuilder {
   addView(view: unknown): GooglePickerBuilder;
+  enableFeature(feature: unknown): GooglePickerBuilder;
   setOAuthToken(token: string): GooglePickerBuilder;
   setDeveloperKey(key: string): GooglePickerBuilder;
   setCallback(callback: (data: GooglePickerResponse) => void): GooglePickerBuilder;
@@ -51,6 +52,7 @@ declare global {
         DocsView: new (viewId?: unknown) => GooglePickerDocsView;
         ViewId: { DOCS: unknown };
         Action: { PICKED: string };
+        Feature: { MULTISELECT_ENABLED: unknown };
       };
     };
     gapi?: {
@@ -85,9 +87,13 @@ function loadScript(src: string): Promise<void> {
  * expone el archivo elegido, sin listar ni sincronizar el Drive del usuario.
  */
 export function useGooglePicker() {
-  const [archivo, setArchivo] = useState<ArchivoElegido | null>(null);
+  const [archivos, setArchivos] = useState<ArchivoElegido[]>([]);
   const [error, setError] = useState<string | null>(null);
   const tokenClientRef = useRef<GoogleTokenClient | null>(null);
+  // El próximo picker se abre en modo simple o múltiple según lo haya pedido
+  // el caller de elegirDeDrive() — se guarda acá porque el callback de OAuth
+  // (abrirPicker) se dispara async, después de que ya volvió elegirDeDrive().
+  const multipleRef = useRef(false);
 
   useEffect(() => {
     Promise.all([
@@ -111,15 +117,21 @@ export function useGooglePicker() {
         .setIncludeFolders(true)
         .setSelectFolderEnabled(false)
         .setMimeTypes("video/mp4,video/quicktime,video/webm,video/x-m4v");
-      const picker = new google.picker.PickerBuilder()
+      let builder = new google.picker.PickerBuilder()
         .addView(vistaImagenes)
         .addView(vistaVideos)
         .setOAuthToken(accessToken)
-        .setDeveloperKey(process.env.NEXT_PUBLIC_GOOGLE_API_KEY ?? "")
+        .setDeveloperKey(process.env.NEXT_PUBLIC_GOOGLE_API_KEY ?? "");
+      if (multipleRef.current) {
+        builder = builder.enableFeature(google.picker.Feature.MULTISELECT_ENABLED);
+      }
+      const picker = builder
         .setCallback((data: GooglePickerResponse) => {
           if (data.action !== google.picker.Action.PICKED) return;
-          const doc = data.docs[0];
-          setArchivo({ id: doc.id, nombre: doc.name, mimeType: doc.mimeType, accessToken });
+          // Reemplaza la selección anterior: reabrir el Picker arranca de cero.
+          setArchivos(
+            data.docs.map((doc) => ({ id: doc.id, nombre: doc.name, mimeType: doc.mimeType, accessToken }))
+          );
           setError(null);
         })
         .build();
@@ -127,8 +139,9 @@ export function useGooglePicker() {
     });
   }
 
-  function elegirDeDrive() {
+  function elegirDeDrive(opts: { multiple: boolean } = { multiple: false }) {
     setError(null);
+    multipleRef.current = opts.multiple;
     if (!window.google) {
       setError("Todavía no cargó la librería de Google. Probá de nuevo en un segundo.");
       return;
@@ -153,5 +166,13 @@ export function useGooglePicker() {
     tokenClientRef.current.requestAccessToken();
   }
 
-  return { archivo, elegirDeDrive, error };
+  function quitarArchivo(id: string) {
+    setArchivos((actuales) => actuales.filter((a) => a.id !== id));
+  }
+
+  function limpiarSeleccion() {
+    setArchivos([]);
+  }
+
+  return { archivos, elegirDeDrive, quitarArchivo, limpiarSeleccion, error };
 }

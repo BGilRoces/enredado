@@ -6,14 +6,16 @@ export function PublicacionResumen({
   publicacion,
   mostrarFecha,
 }: {
-  publicacion: Publicacion & { cuenta: Cuenta };
+  publicacion: Publicacion & { cuenta: Cuenta; _count?: { archivos: number } };
   mostrarFecha?: boolean;
 }) {
+  const cantidadArchivos = publicacion._count?.archivos ?? 0;
   return (
     <>
       <div className="flex items-center justify-between">
         <span className="font-medium">
           {publicacion.cuenta.nombre} · {publicacion.tipo}
+          {cantidadArchivos > 1 && ` · carousel (${cantidadArchivos})`}
         </span>
         <span className="text-xs text-zinc-500">{etiquetaEstado(publicacion)}</span>
       </div>

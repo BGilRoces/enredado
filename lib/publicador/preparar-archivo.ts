@@ -1,5 +1,11 @@
 import { TipoPublicacion } from "@prisma/client";
-import type { DriveClient, PrepararResultado, StorageClient, TipoMedia } from "./types";
+import type {
+  DriveClient,
+  PrepararArchivosResultado,
+  PrepararResultado,
+  StorageClient,
+  TipoMedia,
+} from "./types";
 import { mensajeDeError } from "@/lib/mensaje-de-error";
 
 /** Instagram solo acepta JPEG para imágenes (PNG/WebP/GIF son rechazados). */
@@ -63,4 +69,41 @@ export async function prepararArchivo(
   } catch (error) {
     return { ok: false, error: mensajeDeError(error) };
   }
+}
+
+export interface PrepararArchivosInput {
+  archivos: { driveFileId: string }[];
+  driveAccessToken: string;
+  tipoPublicacion: TipoPublicacion;
+}
+
+/**
+ * Igual que `prepararArchivo`, pero para varios archivos a la vez (carousel,
+ * ver ADR-0011). Si alguno falla, borra (best-effort) los que ya se subieron
+ * a Storage antes de devolver el error — no deja temporales huérfanos de una
+ * Publicación que nunca se va a crear.
+ */
+export async function prepararArchivos(
+  input: PrepararArchivosInput,
+  clients: PrepararArchivoClients
+): Promise<PrepararArchivosResultado> {
+  const listos: { driveFileId: string; tipoMedia: TipoMedia; storageUrl: string }[] = [];
+
+  for (const archivo of input.archivos) {
+    const resultado = await prepararArchivo(
+      {
+        driveFileId: archivo.driveFileId,
+        driveAccessToken: input.driveAccessToken,
+        tipoPublicacion: input.tipoPublicacion,
+      },
+      clients
+    );
+    if (!resultado.ok) {
+      await Promise.all(listos.map((l) => clients.storage.borrar(l.driveFileId).catch(() => {})));
+      return { ok: false, error: resultado.error };
+    }
+    listos.push({ driveFileId: archivo.driveFileId, tipoMedia: resultado.tipoMedia, storageUrl: resultado.storageUrl });
+  }
+
+  return { ok: true, archivos: listos };
 }

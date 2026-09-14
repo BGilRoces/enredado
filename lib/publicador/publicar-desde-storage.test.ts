@@ -1,10 +1,12 @@
 import { TipoPublicacion } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 import { publicarDesdeStorage } from "./publicar-desde-storage";
+import type { PublicarDesdeStorageInputCarousel, PublicarDesdeStorageInputSimple } from "./publicar-desde-storage";
 import type { EstadoContenedor, MetaPublishClient, StorageClient } from "./types";
 
-function input(overrides: Partial<Parameters<typeof publicarDesdeStorage>[0]> = {}) {
+function input(overrides: Partial<PublicarDesdeStorageInputSimple> = {}): PublicarDesdeStorageInputSimple {
   return {
+    modo: "single",
     driveFileId: "drive-1",
     tipoPublicacion: TipoPublicacion.post,
     tipoMedia: "imagen" as const,
@@ -41,6 +43,13 @@ function fakeMeta(
       llamadas.push(`meta.createContainer(${igUserId}, ${params.tipoPublicacion}, ${params.media.tipo})`);
       if (opts.fallaContenedor) throw new Error(opts.fallaContenedor);
       return { containerId: "container-1" };
+    },
+    async createCarouselContainer(igUserId, accessToken, params) {
+      llamadas.push(
+        `meta.createCarouselContainer(${igUserId}, [${params.items.map((i) => i.tipo).join(",")}])`
+      );
+      if (opts.fallaContenedor) throw new Error(opts.fallaContenedor);
+      return { containerId: "container-carousel-1" };
     },
     async getContainerStatus(igUserId, accessToken, containerId) {
       const estado = estados[Math.min(consulta, estados.length - 1)];
@@ -153,5 +162,72 @@ describe("publicarDesdeStorage — video/Reel", () => {
     expect(resultado.estado).toBe("fallida");
     expect(llamadas).not.toContain("meta.publishContainer(ig-1, container-1)");
     expect(llamadas).toContain("storage.borrar(drive-1)");
+  });
+});
+
+describe("publicarDesdeStorage — carousel", () => {
+  function inputCarousel(
+    overrides: Partial<PublicarDesdeStorageInputCarousel> = {}
+  ): PublicarDesdeStorageInputCarousel {
+    return {
+      modo: "carousel",
+      archivos: [
+        { driveFileId: "drive-1", tipoMedia: "imagen" as const, storageUrl: "https://storage.example/drive-1" },
+        { driveFileId: "drive-2", tipoMedia: "imagen" as const, storageUrl: "https://storage.example/drive-2" },
+      ],
+      caption: "Un caption",
+      cuenta: { igUserId: "ig-1", accessToken: "token-meta" },
+      ...overrides,
+    };
+  }
+
+  it("camino feliz: crea el contenedor carousel, publica sin pollear (sólo imágenes), y borra todos los temporales", async () => {
+    const llamadas: string[] = [];
+    const resultado = await publicarDesdeStorage(inputCarousel(), {
+      meta: fakeMeta(llamadas),
+      storage: fakeStorage(llamadas),
+      esperar: noEsperar(),
+    });
+
+    expect(resultado).toEqual({ estado: "publicada", metaMediaId: "media-1" });
+    expect(llamadas).toEqual([
+      "meta.createCarouselContainer(ig-1, [imagen,imagen])",
+      "meta.publishContainer(ig-1, container-carousel-1)",
+      "storage.borrar(drive-1)",
+      "storage.borrar(drive-2)",
+    ]);
+  });
+
+  it("con algún video entre los archivos, espera el procesamiento antes de publicar", async () => {
+    const llamadas: string[] = [];
+    const resultado = await publicarDesdeStorage(
+      inputCarousel({
+        archivos: [
+          { driveFileId: "drive-1", tipoMedia: "imagen", storageUrl: "https://storage.example/drive-1" },
+          { driveFileId: "drive-2", tipoMedia: "video", storageUrl: "https://storage.example/drive-2" },
+        ],
+      }),
+      {
+        meta: fakeMeta(llamadas, { estados: ["en_progreso", "listo"] }),
+        storage: fakeStorage(llamadas),
+        esperar: noEsperar(),
+      }
+    );
+
+    expect(resultado).toEqual({ estado: "publicada", metaMediaId: "media-1" });
+    expect(llamadas.filter((l) => l.startsWith("meta.getContainerStatus")).length).toBe(2);
+  });
+
+  it("si Meta rechaza el contenedor carousel, igual borra todos los temporales", async () => {
+    const llamadas: string[] = [];
+    const resultado = await publicarDesdeStorage(inputCarousel(), {
+      meta: fakeMeta(llamadas, { fallaContenedor: "la cuenta no tiene permiso" }),
+      storage: fakeStorage(llamadas),
+      esperar: noEsperar(),
+    });
+
+    expect(resultado).toEqual({ estado: "fallida", error: "la cuenta no tiene permiso" });
+    expect(llamadas).toContain("storage.borrar(drive-1)");
+    expect(llamadas).toContain("storage.borrar(drive-2)");
   });
 });

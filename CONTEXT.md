@@ -16,6 +16,10 @@ _Avoid_: contenido, subida.
 Una Publicación en el feed de una Cuenta de Instagram (foto o video), contenido permanente. No es un Reel ni una Historia.
 _Avoid_: publicación en el feed (usar "Post"), foto subida.
 
+**Carousel**:
+Un Post armado con varias fotos y/o videos (entre 2 y 10, límite de Instagram) elegidos juntos desde Drive, publicados como una sola Publicación con varios elementos. Sólo existe para Post — una Historia nunca es un carousel, cada Historia es siempre un único archivo.
+_Avoid_: álbum, multi-foto.
+
 **Historia**:
 Una Publicación en la Historia de una Cuenta de Instagram (foto o video), contenido efímero definido por Instagram mismo, no por este panel.
 _Avoid_: story, stories.

@@ -40,7 +40,7 @@ export default async function HistorialPage({
     },
     orderBy: { creadaEn: "desc" },
     take: 100,
-    include: { cuenta: true },
+    include: { cuenta: true, _count: { select: { archivos: true } } },
   });
 
   return (

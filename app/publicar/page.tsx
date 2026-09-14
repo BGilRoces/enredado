@@ -33,7 +33,7 @@ export default async function PublicarPage({
       ...(cuentaFiltro ? { cuentaId: cuentaFiltro } : {}),
     },
     orderBy: { creadaEn: "asc" },
-    include: { cuenta: true },
+    include: { cuenta: true, _count: { select: { archivos: true } } },
   });
 
   const publicaciones = await prisma.publicacion.findMany({
@@ -49,7 +49,7 @@ export default async function PublicarPage({
     },
     orderBy: { creadaEn: "desc" },
     take: 10,
-    include: { cuenta: true },
+    include: { cuenta: true, _count: { select: { archivos: true } } },
   });
 
   return (
