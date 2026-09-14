@@ -23,6 +23,7 @@
 - `app/cuentas/page.tsx` + `actions.ts`: lista, conectar, desconectar.
 - Prisma: modelo `Cuenta` + enum `EstadoCuenta` nuevos en `prisma/schema.prisma`.
 - Pasó por `/code-review` (Standards + Spec): 5 judgement calls de Standards (duplicación de `GRAPH_VERSION`, lógica de CSRF sin extraer, cookie compartida entre rutas, `"conectada"` como string suelto en vez del enum) — los 4 con fix aplicable se corrigieron; 2 hallazgos de Spec (mensaje de error de Meta pasado crudo a la UI, upsert sin transacción) — ambos corregidos.
+- **Bug real encontrado después del review, no por el review**: el modelo `Cuenta` se agregó a `schema.prisma` pero nunca se había armado el flujo de migraciones del proyecto — la tabla no existía en la Postgres real, `/cuentas` iba a tirar error en producción. Se agregó `prisma.config.ts` (mismo patrón que `sistemas`, necesario porque nuestro `schema.prisma` no declara `url` a propósito, ver `lib/db/prisma.ts`), la migración inicial en `prisma/migrations/`, y `prisma migrate deploy` corriendo antes de `next start` en cada deploy — ver sección "Migraciones" del README.
 
 **Pendiente — bloqueo real, no de código:** no existe todavía una App de Meta for Developers, así que el flujo no se puede probar contra la Graph API real. Falta (pasos manuales, candidato a `/wizard`):
 - Crear la App en Meta for Developers, agregar el producto Facebook Login, configurar la Redirect URI (`https://<dominio-de-enredado>/api/meta/callback`).

@@ -11,7 +11,17 @@ Ver [`CONTEXT.md`](./CONTEXT.md) para el glosario del proyecto y [`docs/adr/`](.
 - **Prisma 7** (`@prisma/adapter-pg`) para los datos del dominio — misma Postgres de `shared-infra`, en su propio schema `enredado`.
 - **Vitest** para tests. Sin prior art de testing en el resto de los proyectos del VPS; se eligió por ser el default liviano actual para proyectos TS/Next.
 
-Este stack sigue el mismo patrón que `saume-sistema` (el panel interno más parecido a este: Supabase Auth solo para sesión/login, Prisma para los datos, nunca `.from()` de supabase-js para queries de dominio).
+Este stack sigue el mismo patrón que `saume-sistema` (el panel interno más parecido a este: Supabase Auth solo para sesión/login, Prisma para los datos, nunca `.from()` de supabase-js para queries de dominio, `prisma.config.ts` para que el CLI de Prisma sepa el `DATABASE_URL` ya que el runtime lo resuelve vía driver adapter y no desde `schema.prisma`).
+
+## Migraciones de base de datos
+
+Cada cambio al modelo de datos (`prisma/schema.prisma`) necesita una migración real en `prisma/migrations/` — no alcanza con `prisma generate` (eso solo regenera el cliente TypeScript, no toca la base).
+
+```bash
+npx prisma migrate dev --name algo_descriptivo   # local: crea la migración Y la aplica a tu DB de desarrollo
+```
+
+En producción, `npm run start` corre `prisma migrate deploy` antes de `next start` — así cada deploy aplica solo las migraciones pendientes contra la Postgres real de `shared-infra`, sin ningún paso manual.
 
 ## Convención de auth entre apps (importante)
 
