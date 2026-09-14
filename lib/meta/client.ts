@@ -15,9 +15,12 @@ const INSTAGRAM_GRAPH_BASE = `https://graph.instagram.com/${GRAPH_VERSION}`;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function parseGraphResponse(res: Response, body: any) {
   if (!res.ok) {
-    // Meta.error.message ya viene en texto legible; si no vino (respuesta
-    // rara/malformada), no mostramos el código HTTP pelado (ticket 06).
-    const motivo = body?.error?.message ?? `sin más detalle (HTTP ${res.status})`;
+    // Meta.error.message es el formato de graph.facebook.com/graph.instagram.com;
+    // api.instagram.com/oauth/access_token (login de Instagram, ver ADR-0012)
+    // usa error_message/error_type en su lugar. Si no vino ninguno de los dos
+    // (respuesta rara/malformada), no mostramos el código HTTP pelado (ticket 06).
+    const motivo =
+      body?.error?.message ?? body?.error_message ?? `sin más detalle (HTTP ${res.status})`;
     throw new Error(`Meta rechazó la solicitud: ${motivo}`);
   }
   return body;
@@ -56,7 +59,9 @@ export const metaClient: MetaClient = {
       redirect_uri: redirectUri,
       code,
     });
-    return { accessToken: body.data?.[0]?.access_token as string };
+    // Documentado como { data: [{ access_token, ... }] }, pero se acepta
+    // también la forma plana por si acaso — más barato que romper acá.
+    return { accessToken: (body.data?.[0]?.access_token ?? body.access_token) as string };
   },
 
   async getLongLivedToken(shortLivedToken) {

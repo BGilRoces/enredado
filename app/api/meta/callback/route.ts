@@ -6,6 +6,7 @@ import { metaClient } from "@/lib/meta/client";
 import { resolveInstagramAccount, type ResolvedAccount } from "@/lib/meta/resolve-accounts";
 import { decideCallbackOutcome } from "@/lib/meta/callback-outcome";
 import { APP_URL, OAUTH_STATE_COOKIE } from "@/lib/meta/config";
+import { mensajeDeError } from "@/lib/mensaje-de-error";
 
 function redirectToCuentas(params: Record<string, string>) {
   const url = new URL("/cuentas", APP_URL);
@@ -47,10 +48,8 @@ export async function GET(request: NextRequest) {
   let resolved: ResolvedAccount;
   try {
     resolved = await resolveInstagramAccount(outcome.code, redirectUri, metaClient);
-  } catch {
-    return redirectToCuentas({
-      error: "Meta rechazó la conexión. Revisá que la cuenta sea Business/Creator.",
-    });
+  } catch (error) {
+    return redirectToCuentas({ error: mensajeDeError(error) });
   }
 
   try {
@@ -60,9 +59,9 @@ export async function GET(request: NextRequest) {
       create: data,
       update: data,
     });
-  } catch {
+  } catch (error) {
     return redirectToCuentas({
-      error: "Conectamos con Meta pero no pudimos guardar la Cuenta. Probá de nuevo.",
+      error: `Conectamos con Meta pero no pudimos guardar la Cuenta: ${mensajeDeError(error)}`,
     });
   }
 
