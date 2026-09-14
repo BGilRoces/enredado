@@ -10,6 +10,23 @@ function headersDrive(accessToken: string, driveFileId: string, resourceKey?: st
 }
 
 /**
+ * El status HTTP solo (404, 403...) no alcanza para diagnosticar Drive: el
+ * cuerpo de error de Google trae la razón real (permisos insuficientes,
+ * scope, archivo inexistente, etc. — cada una pide un fix distinto). Nunca
+ * descartar ese cuerpo aunque no sea JSON válido.
+ */
+async function mensajeErrorGoogle(res: Response, accion: string): Promise<string> {
+  const cuerpo = await res.text();
+  try {
+    const parsed = JSON.parse(cuerpo);
+    const detalle = parsed?.error?.message ?? cuerpo;
+    return `Google Drive respondió ${res.status} al ${accion}: ${detalle}`;
+  } catch {
+    return `Google Drive respondió ${res.status} al ${accion}${cuerpo ? `: ${cuerpo}` : ""}`;
+  }
+}
+
+/**
  * Resuelve el id (y resourceKey, si corresponde) con el que hay que pedir el
  * contenido real, cubriendo dos casos que la API trata como "no existe"
  * (404) si no se manejan:
@@ -34,7 +51,7 @@ async function resolverArchivoReal(
     { headers: headersDrive(accessToken, driveFileId, resourceKey) }
   );
   if (!res.ok) {
-    return { id: driveFileId, error: `Google Drive respondió ${res.status} al leer el archivo` };
+    return { id: driveFileId, error: await mensajeErrorGoogle(res, "leer el archivo") };
   }
   const meta = await res.json();
   if (meta.mimeType === SHORTCUT_MIME_TYPE && meta.shortcutDetails?.targetId) {
@@ -65,7 +82,7 @@ export const driveClient: DriveClient = {
       { headers: headersDrive(accessToken, real.id, real.resourceKey) }
     );
     if (!res.ok) {
-      throw new Error(`Google Drive respondió ${res.status} al descargar el archivo`);
+      throw new Error(await mensajeErrorGoogle(res, "descargar el archivo"));
     }
     const mimeType = res.headers.get("content-type") ?? "application/octet-stream";
     const data = Buffer.from(await res.arrayBuffer());
