@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { crearPublicacion } from "./actions";
+import { DrivePickerMobile } from "./drive-picker-mobile";
 import { useGooglePicker } from "./use-google-picker";
 
 interface CuentaOption {
@@ -37,6 +38,10 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
     moverArchivoA,
     limpiarSeleccion,
     error: errorPicker,
+    pickerMobileAbierto,
+    accessTokenPickerMobile,
+    confirmarSeleccionMobile,
+    cerrarPickerMobile,
   } = useGooglePicker();
   const [cuentaId, setCuentaId] = useState(cuentas[0]?.id ?? "");
   const [tipoPublicacion, setTipoPublicacion] = useState<TipoPublicacionOption>("post");
@@ -208,6 +213,15 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
           </span>
         )}
       </div>
+
+      {pickerMobileAbierto && accessTokenPickerMobile && (
+        <DrivePickerMobile
+          accessToken={accessTokenPickerMobile}
+          multiple={tipoPublicacion !== "reel"}
+          onConfirm={confirmarSeleccionMobile}
+          onClose={cerrarPickerMobile}
+        />
+      )}
 
       <label className="flex flex-col gap-1 text-sm text-zinc-700">
         Tipo de Publicación

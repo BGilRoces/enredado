@@ -67,7 +67,16 @@ declare global {
   }
 }
 
-const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+// drive.readonly (no drive.file): el picker propio de mobile necesita poder
+// listar carpetas (files.list), algo que drive.file no permite — ese scope
+// solo da acceso a archivos que el usuario ya tocó explícitamente vía un
+// Picker. Ver "Selector de Drive propio para mobile".
+const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.readonly";
+
+/** Input táctil primario — más confiable que el ancho de pantalla, que un desktop con la ventana angosta puede falsear. */
+function esMobile(): boolean {
+  return window.matchMedia("(pointer: coarse)").matches;
+}
 
 /**
  * Google exige setAppId() (el número de proyecto de Cloud) para que el
@@ -104,8 +113,11 @@ function loadScript(src: string): Promise<void> {
 }
 
 /**
- * Encapsula el login OAuth de Google (Identity Services) y el Picker: solo
- * expone el archivo elegido, sin listar ni sincronizar el Drive del usuario.
+ * Encapsula el login OAuth de Google (Identity Services) y el picker de
+ * archivos (el widget de Google en desktop, uno propio en mobile — ver
+ * drive-picker-mobile.tsx): solo expone el archivo elegido. Nunca lista ni
+ * sincroniza el Drive del usuario desde el servidor — el listado del picker
+ * mobile también corre en el browser, con este mismo token.
  */
 export function useGooglePicker() {
   const [archivos, setArchivos] = useState<ArchivoElegido[]>([]);
@@ -115,6 +127,12 @@ export function useGooglePicker() {
   // el caller de elegirDeDrive() — se guarda acá porque el callback de OAuth
   // (abrirPicker) se dispara async, después de que ya volvió elegirDeDrive().
   const multipleRef = useRef(false);
+  // Copia en estado de multipleRef: el modal del picker mobile es un
+  // componente React normal y necesita re-renderizar con este valor, a
+  // diferencia del Picker de Google que lo lee una sola vez al abrirse.
+  const [multiple, setMultiple] = useState(false);
+  const [pickerMobileAbierto, setPickerMobileAbierto] = useState(false);
+  const [accessTokenPickerMobile, setAccessTokenPickerMobile] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -164,6 +182,12 @@ export function useGooglePicker() {
           setError(null);
         })
         .build();
+      // El Picker centra su diálogo según el scroll de la página en el
+      // momento de mostrarse. Si el usuario tocó el botón estando scrolleado
+      // hacia abajo (común en mobile, donde la página es más larga), el
+      // diálogo queda posicionado arriba del todo del documento, fuera de la
+      // vista actual — hay que subir el scroll antes de abrirlo.
+      window.scrollTo({ top: 0, behavior: "instant" });
       picker.setVisible(true);
     });
   }
@@ -171,6 +195,7 @@ export function useGooglePicker() {
   function elegirDeDrive(opts: { multiple: boolean } = { multiple: false }) {
     setError(null);
     multipleRef.current = opts.multiple;
+    setMultiple(opts.multiple);
     if (!window.google) {
       setError("Todavía no cargó la librería de Google. Probá de nuevo en un segundo.");
       return;
@@ -188,7 +213,16 @@ export function useGooglePicker() {
             setError("Google no autorizó el acceso a Drive.");
             return;
           }
-          abrirPicker(tokenResponse.access_token);
+          // El widget de Google (PickerBuilder) depende de hover para
+          // navegar carpetas y de checkboxes chicos para multi-seleccionar
+          // — en touch no anda. En mobile se abre el picker propio en su
+          // lugar (ver drive-picker-mobile.tsx).
+          if (esMobile()) {
+            setAccessTokenPickerMobile(tokenResponse.access_token);
+            setPickerMobileAbierto(true);
+          } else {
+            abrirPicker(tokenResponse.access_token);
+          }
         },
       });
     }
@@ -229,5 +263,31 @@ export function useGooglePicker() {
     setArchivos([]);
   }
 
-  return { archivos, elegirDeDrive, quitarArchivo, moverArchivo, moverArchivoA, limpiarSeleccion, error };
+  /** Reemplaza la selección anterior, igual que el callback del Picker de Google — reabrir arranca de cero. */
+  function confirmarSeleccionMobile(elegidos: ArchivoElegido[]) {
+    setArchivos(elegidos);
+    setError(null);
+    setPickerMobileAbierto(false);
+    setAccessTokenPickerMobile(null);
+  }
+
+  function cerrarPickerMobile() {
+    setPickerMobileAbierto(false);
+    setAccessTokenPickerMobile(null);
+  }
+
+  return {
+    archivos,
+    elegirDeDrive,
+    quitarArchivo,
+    moverArchivo,
+    moverArchivoA,
+    limpiarSeleccion,
+    error,
+    multiple,
+    pickerMobileAbierto,
+    accessTokenPickerMobile,
+    confirmarSeleccionMobile,
+    cerrarPickerMobile,
+  };
 }

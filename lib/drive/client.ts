@@ -82,9 +82,10 @@ async function resolverArchivoReal(
 }
 
 /**
- * Cliente real de Google Drive. El access token viene del Google Picker
- * (OAuth del lado del cliente, scope drive.file) — el servidor nunca lista ni
- * sincroniza el Drive, solo baja el archivo puntual que el usuario eligió.
+ * Cliente real de Google Drive. El access token viene del picker del lado
+ * del cliente (OAuth, scope drive.readonly — el Picker de Google en desktop,
+ * uno propio en mobile, ver use-google-picker.ts) — el servidor nunca lista
+ * ni sincroniza el Drive, solo baja el archivo puntual que el usuario eligió.
  */
 export const driveClient: DriveClient = {
   async descargarArchivo(driveFileId, accessToken, resourceKey) {
