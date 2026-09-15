@@ -1,5 +1,6 @@
 import { EstadoCuenta, EstadoPublicacion } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
+import { obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
 import { PublicarForm } from "./publicar-form";
 import { cancelarPublicacion, editarPublicacion } from "./actions";
 import { CuentaFiltroForm } from "@/components/cuenta-filtro-form";
@@ -24,15 +25,19 @@ export default async function PublicarPage({
   const params = await searchParams;
   const cuentaFiltro = typeof params.cuentaId === "string" ? params.cuentaId : "";
 
+  const cuentaIdPermitida = await obtenerCuentaIdPermitida();
+  // Un colaborador restringido no elige por URL: siempre ve solo su Cuenta.
+  const cuentaId = cuentaIdPermitida ?? (cuentaFiltro || undefined);
+
   const cuentas = await prisma.cuenta.findMany({
-    where: { estado: EstadoCuenta.conectada },
+    where: { estado: EstadoCuenta.conectada, ...(cuentaIdPermitida ? { id: cuentaIdPermitida } : {}) },
     orderBy: { nombre: "asc" },
   });
 
   const pendientes = await prisma.publicacion.findMany({
     where: {
       estado: { in: [EstadoPublicacion.pendiente, EstadoPublicacion.publicando] },
-      ...(cuentaFiltro ? { cuentaId: cuentaFiltro } : {}),
+      ...(cuentaId ? { cuentaId } : {}),
     },
     orderBy: { creadaEn: "asc" },
     include: { cuenta: true, _count: { select: { archivos: true } } },
@@ -48,6 +53,7 @@ export default async function PublicarPage({
           EstadoPublicacion.cancelada,
         ],
       },
+      ...(cuentaIdPermitida ? { cuentaId: cuentaIdPermitida } : {}),
     },
     orderBy: { creadaEn: "desc" },
     take: 10,

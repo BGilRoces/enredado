@@ -7,6 +7,7 @@ import { resolveInstagramAccount, type ResolvedAccount } from "@/lib/meta/resolv
 import { decideCallbackOutcome } from "@/lib/meta/callback-outcome";
 import { APP_URL, OAUTH_STATE_COOKIE } from "@/lib/meta/config";
 import { mensajeDeError } from "@/lib/mensaje-de-error";
+import { obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
 
 function redirectToCuentas(params: Record<string, string>) {
   const url = new URL("/cuentas", APP_URL);
@@ -53,6 +54,17 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Un colaborador restringido a una Cuenta (ver lib/auth/cuenta-permitida)
+    // solo puede reconectar la suya, nunca dar de alta una nueva ni tocar la
+    // de otro — recién acá se sabe qué Cuenta resultó de este OAuth.
+    const cuentaIdPermitida = await obtenerCuentaIdPermitida();
+    if (cuentaIdPermitida) {
+      const existente = await prisma.cuenta.findUnique({ where: { igUserId: resolved.igUserId } });
+      if (existente?.id !== cuentaIdPermitida) {
+        return redirectToCuentas({ error: "No tenés acceso a esta Cuenta de Instagram." });
+      }
+    }
+
     const data = cuentaData(resolved);
     await prisma.cuenta.upsert({
       where: { igUserId: resolved.igUserId },

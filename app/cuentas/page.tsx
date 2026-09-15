@@ -1,5 +1,6 @@
 import { EstadoCuenta, EstadoPublicacion, type Cuenta } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
+import { obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
 import { desconectarCuenta } from "./actions";
 import { LIMITE_PUBLICACIONES_POR_VENTANA, VENTANA_LIMITE_MS } from "@/lib/limite-diario/excedio-limite-diario";
 import { AppShell } from "@/components/app-shell";
@@ -49,7 +50,11 @@ export default async function CuentasPage({
   const connected = params.connected;
   const error = typeof params.error === "string" ? params.error : null;
 
-  const cuentas = await prisma.cuenta.findMany({ orderBy: { creadaEn: "asc" } });
+  const cuentaIdPermitida = await obtenerCuentaIdPermitida();
+  const cuentas = await prisma.cuenta.findMany({
+    where: cuentaIdPermitida ? { id: cuentaIdPermitida } : undefined,
+    orderBy: { creadaEn: "asc" },
+  });
   const publicadasHoyPorCuenta = await contarPublicadasHoyPorCuenta(cuentas);
 
   return (
@@ -58,12 +63,14 @@ export default async function CuentasPage({
         <h1 className="text-xl font-semibold tracking-tight text-zinc-900">
           Cuentas de Instagram
         </h1>
-        <a
-          href="/api/meta/connect"
-          className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800"
-        >
-          Conectar cuenta
-        </a>
+        {!cuentaIdPermitida && (
+          <a
+            href="/api/meta/connect"
+            className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800"
+          >
+            Conectar cuenta
+          </a>
+        )}
       </div>
 
       {connected && (

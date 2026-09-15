@@ -1,6 +1,7 @@
 import { EstadoCuenta } from "@prisma/client";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/db/prisma";
+import { obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
 import { AppShell } from "@/components/app-shell";
 
 const ACCESOS = [
@@ -26,8 +27,9 @@ export default async function DashboardPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const cuentaIdPermitida = await obtenerCuentaIdPermitida();
   const cuentasConectadas = await prisma.cuenta.count({
-    where: { estado: EstadoCuenta.conectada },
+    where: { estado: EstadoCuenta.conectada, ...(cuentaIdPermitida ? { id: cuentaIdPermitida } : {}) },
   });
 
   return (

@@ -1,5 +1,6 @@
 import { EstadoPublicacion } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
+import { obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
 import { CuentaFiltroForm } from "@/components/cuenta-filtro-form";
 import { PublicacionResumen } from "@/components/publicacion-resumen";
 import { ETIQUETAS_POR_ESTADO } from "@/components/etiqueta-estado";
@@ -32,11 +33,18 @@ export default async function HistorialPage({
   const estadoParam = typeof params.estado === "string" ? params.estado : "";
   const estadoFiltro = esEstadoValido(estadoParam) ? estadoParam : "";
 
-  const cuentas = await prisma.cuenta.findMany({ orderBy: { nombre: "asc" } });
+  const cuentaIdPermitida = await obtenerCuentaIdPermitida();
+  // Un colaborador restringido no elige por URL: siempre ve solo su Cuenta.
+  const cuentaId = cuentaIdPermitida ?? (cuentaFiltro || undefined);
+
+  const cuentas = await prisma.cuenta.findMany({
+    where: cuentaIdPermitida ? { id: cuentaIdPermitida } : undefined,
+    orderBy: { nombre: "asc" },
+  });
 
   const publicaciones = await prisma.publicacion.findMany({
     where: {
-      ...(cuentaFiltro ? { cuentaId: cuentaFiltro } : {}),
+      ...(cuentaId ? { cuentaId } : {}),
       ...(estadoFiltro ? { estado: estadoFiltro } : {}),
     },
     orderBy: { creadaEn: "desc" },

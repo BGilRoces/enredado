@@ -3,6 +3,10 @@ import { NextResponse } from "next/server";
 import { buildAuthorizeUrl } from "@/lib/meta/oauth-url";
 import { APP_URL, OAUTH_STATE_COOKIE } from "@/lib/meta/config";
 
+// No se sabe todavía qué Cuenta de Instagram va a resultar de este OAuth
+// (podría ser la reconexión de la propia, o una nueva) — el chequeo de
+// acceso de un colaborador restringido pasa recién en el callback, una vez
+// que Meta devuelve el igUserId real.
 export async function GET() {
   const state = randomBytes(16).toString("hex");
   const redirectUri = new URL("/api/meta/callback", APP_URL).toString();

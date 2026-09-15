@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cerrarSesion } from "@/lib/auth/actions";
 
 type Seccion = "inicio" | "cuentas" | "publicar" | "historial";
 
@@ -27,21 +28,31 @@ export function AppShell({
           >
             enredado
           </Link>
-          <nav className="flex gap-1 text-sm">
-            {NAV.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                className={
-                  item.seccion === active
-                    ? "rounded-full bg-indigo-50 px-3 py-1.5 font-medium text-indigo-700"
-                    : "rounded-full px-3 py-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900"
-                }
+          <div className="flex items-center gap-2">
+            <nav className="flex gap-1 text-sm">
+              {NAV.map((item) => (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  className={
+                    item.seccion === active
+                      ? "rounded-full bg-indigo-50 px-3 py-1.5 font-medium text-indigo-700"
+                      : "rounded-full px-3 py-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900"
+                  }
+                >
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+            <form action={cerrarSesion}>
+              <button
+                type="submit"
+                className="rounded-full px-3 py-1.5 text-sm text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900"
               >
-                {item.label}
-              </a>
-            ))}
-          </nav>
+                Cerrar sesión
+              </button>
+            </form>
+          </div>
         </div>
       </header>
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-6 py-8 sm:px-8">

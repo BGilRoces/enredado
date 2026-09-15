@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { EstadoCuenta, EstadoPublicacion, TipoPublicacion, type Cuenta } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
+import { asegurarAccesoACuenta } from "@/lib/auth/cuenta-permitida";
 import { prepararArchivo, prepararArchivos } from "@/lib/publicador/preparar-archivo";
 import { driveClient } from "@/lib/drive/client";
 import { storageClient } from "@/lib/storage/client";
@@ -138,6 +139,7 @@ export async function crearPublicacion(
   if (!cuenta || cuenta.estado !== EstadoCuenta.conectada) {
     throw new Error("La Cuenta elegida no está conectada.");
   }
+  await asegurarAccesoACuenta(cuenta.id);
   if (input.archivos.length === 0) {
     throw new Error("Elegí al menos un archivo de Drive.");
   }
@@ -177,6 +179,7 @@ export async function crearPublicacion(
 export async function cancelarPublicacion(id: string): Promise<void> {
   const publicacion = await prisma.publicacion.findUnique({ where: { id }, include: { archivos: true } });
   if (!publicacion) throw new Error("Publicación no encontrada.");
+  await asegurarAccesoACuenta(publicacion.cuentaId);
 
   const { count } = await prisma.publicacion.updateMany({
     where: { id, estado: EstadoPublicacion.pendiente },
@@ -208,6 +211,10 @@ export interface EditarPublicacionInput {
  * archivo ya preparado en Storage (ver ADR-0009).
  */
 export async function editarPublicacion(id: string, data: EditarPublicacionInput): Promise<void> {
+  const publicacion = await prisma.publicacion.findUnique({ where: { id }, select: { cuentaId: true } });
+  if (!publicacion) throw new Error("Publicación no encontrada.");
+  await asegurarAccesoACuenta(publicacion.cuentaId);
+
   const { count } = await prisma.publicacion.updateMany({
     where: { id, estado: EstadoPublicacion.pendiente },
     data: { caption: data.caption || null, programadaPara: data.programadaPara },

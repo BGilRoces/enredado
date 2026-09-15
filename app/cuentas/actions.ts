@@ -3,12 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { EstadoCuenta } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
+import { asegurarAccesoACuenta } from "@/lib/auth/cuenta-permitida";
 
 /**
  * Desconecta una Cuenta: borra su token (ya no se puede publicar con ella)
  * pero conserva la fila y su historial de Publicaciones asociado.
  */
 export async function desconectarCuenta(id: string) {
+  await asegurarAccesoACuenta(id);
   await prisma.cuenta.update({
     where: { id },
     data: {
