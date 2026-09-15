@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { bajarThumbnail } from "./drive-thumbnail";
+import { bajarImagenComoDataUrl } from "./drive-thumbnail";
 import type { ArchivoElegido } from "./use-google-picker";
 
 /** Mismos mimeType que usa el Picker de Google en desktop (ver abrirPicker en use-google-picker.ts) — no restringir más acá. */
@@ -31,7 +31,6 @@ interface DriveApiFile {
   id: string;
   name: string;
   mimeType: string;
-  thumbnailLink?: string;
   resourceKey?: string;
   shortcutDetails?: { targetId?: string; targetMimeType?: string; targetResourceKey?: string };
 }
@@ -43,14 +42,21 @@ interface ItemCarpeta {
   nombre: string;
 }
 
-/** Archivo elegible, con el id/resourceKey del shortcut original si vino por uno (ver resolverArchivoReal en client.ts). */
+/**
+ * Archivo elegible. `id`/`resourceKey` son del shortcut original si vino por
+ * uno (ver resolverArchivoReal en client.ts, que ya sabe resolverlo al
+ * descargar) — `idContenido`/`resourceKeyContenido` son del archivo real con
+ * bytes propios (el target si es shortcut), los únicos que sirven para bajar
+ * una preview con `alt=media` (un shortcut no tiene contenido propio).
+ */
 interface ItemArchivo {
   tipo: "archivo";
   id: string;
   nombre: string;
   mimeType: string;
   resourceKey?: string;
-  thumbnailLink?: string;
+  idContenido: string;
+  resourceKeyContenido?: string;
 }
 
 type Item = ItemCarpeta | ItemArchivo;
@@ -66,14 +72,15 @@ function clasificar(file: DriveApiFile): Item | null {
       if (!target.targetId) return null;
       return { tipo: "carpeta", idParaNavegar: target.targetId, nombre: file.name };
     }
-    if (MIME_TYPES_ACEPTADOS.includes(target.targetMimeType)) {
+    if (MIME_TYPES_ACEPTADOS.includes(target.targetMimeType) && target.targetId) {
       return {
         tipo: "archivo",
         id: file.id,
         nombre: file.name,
         mimeType: target.targetMimeType,
         resourceKey: file.resourceKey,
-        thumbnailLink: file.thumbnailLink,
+        idContenido: target.targetId,
+        resourceKeyContenido: target.targetResourceKey,
       };
     }
     return null;
@@ -85,7 +92,8 @@ function clasificar(file: DriveApiFile): Item | null {
       nombre: file.name,
       mimeType: file.mimeType,
       resourceKey: file.resourceKey,
-      thumbnailLink: file.thumbnailLink,
+      idContenido: file.id,
+      resourceKeyContenido: file.resourceKey,
     };
   }
   return null;
@@ -135,8 +143,11 @@ export function DrivePickerMobile({ accessToken, multiple, onConfirm, onClose }:
     try {
       const params = new URLSearchParams({
         q: construirQuery(folderId),
-        fields: "files(id,name,mimeType,thumbnailLink,resourceKey,shortcutDetails),nextPageToken",
-        pageSize: "60",
+        fields: "files(id,name,mimeType,resourceKey,shortcutDetails),nextPageToken",
+        // Más chico que antes: la preview ahora baja el archivo real (ver
+        // drive-thumbnail.ts), no una miniatura liviana — menos por página
+        // acota cuántas imágenes se bajan de una.
+        pageSize: "24",
         supportsAllDrives: "true",
         includeItemsFromAllDrives: "true",
         orderBy: "folder,name",
@@ -160,16 +171,19 @@ export function DrivePickerMobile({ accessToken, multiple, onConfirm, onClose }:
     }
   }
 
-  // Trae las miniaturas autenticadas de los archivos de esta página — thumbnailLink no es accesible sin el token.
+  // Trae la preview de cada imagen de esta página (nunca de video, ver drive-thumbnail.ts).
   useEffect(() => {
     const controller = new AbortController();
-    const archivos = items.filter((i): i is ItemArchivo => i.tipo === "archivo" && !!i.thumbnailLink);
+    const archivos = items.filter(
+      (i): i is ItemArchivo => i.tipo === "archivo" && i.mimeType.startsWith("image/") && !thumbnails[i.id]
+    );
     for (const archivo of archivos) {
-      if (thumbnails[archivo.id]) continue;
-      bajarThumbnail(archivo.thumbnailLink!, accessToken, controller.signal).then((dataUrl) => {
-        if (!dataUrl) return;
-        setThumbnails((actuales) => ({ ...actuales, [archivo.id]: dataUrl }));
-      });
+      bajarImagenComoDataUrl(archivo.idContenido, accessToken, archivo.resourceKeyContenido, controller.signal).then(
+        (dataUrl) => {
+          if (!dataUrl) return;
+          setThumbnails((actuales) => ({ ...actuales, [archivo.id]: dataUrl }));
+        }
+      );
     }
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- solo depende de los items de la página actual.

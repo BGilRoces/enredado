@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { bajarThumbnail } from "./drive-thumbnail";
+import { bajarImagenComoDataUrl } from "./drive-thumbnail";
 
 // Google Identity Services y el Picker no tienen tipos oficiales livianos;
 // se acceden como globals cargados por script, ver loadScript() más abajo.
@@ -180,17 +180,18 @@ export function useGooglePicker() {
             }))
           );
           setError(null);
-          // Las URLs de miniatura que da el Picker (doc.thumbnails/doc.iconUrl)
-          // no cargan como <img> plano (ver drive-thumbnail.ts) — se bajan
-          // autenticadas aparte y se suman a cada archivo cuando llegan, sin
-          // bloquear que la lista aparezca.
+          // El Picker no devuelve `thumbnails` para items de Google Drive (es
+          // así por diseño, no un bug — ver drive-thumbnail.ts) — se bajan
+          // aparte con la Drive API y se suman a cada archivo cuando llegan,
+          // sin bloquear que la lista aparezca. Solo para imágenes: para
+          // video bajaría el archivo entero.
           Promise.all(
-            data.docs.map(async (doc) => {
-              const url = doc.thumbnails?.[0]?.url ?? doc.iconUrl;
-              if (!url) return null;
-              const thumbnailUrl = await bajarThumbnail(url, accessToken);
-              return thumbnailUrl ? { id: doc.id, thumbnailUrl } : null;
-            })
+            data.docs
+              .filter((doc) => doc.mimeType.startsWith("image/"))
+              .map(async (doc) => {
+                const thumbnailUrl = await bajarImagenComoDataUrl(doc.id, accessToken, doc.resourceKey);
+                return thumbnailUrl ? { id: doc.id, thumbnailUrl } : null;
+              })
           ).then((resultados) => {
             setArchivos((actuales) =>
               actuales.map((a) => {

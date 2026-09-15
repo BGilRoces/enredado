@@ -1,21 +1,36 @@
 /**
- * Las URLs de miniatura de Drive (tanto `doc.thumbnails[].url`/`doc.iconUrl`
- * que da el Picker de Google como `thumbnailLink` de la Drive API) no cargan
- * de forma confiable como `<img src>` plano: dependen de que el navegador
- * tenga la cookie de sesión de la cuenta de Google correcta, algo cada vez
- * más bloqueado (Safari ITP, cookies de terceros) — por eso el preview "no
- * carga en ningún lado", en desktop y en mobile por igual. La bajan acá con
- * el mismo access token que cualquier otro pedido a Drive y la convierten a
- * data URL, que no depende de cookies ni hay que revocar (a diferencia de un
- * blob: URL).
+ * Por qué esto NO usa `thumbnailLink` ni `doc.thumbnails`/`doc.iconUrl` del
+ * Picker (el intento anterior):
+ *
+ * - El Picker de Google directamente no devuelve `thumbnails` para items que
+ *   pertenecen a Google Drive — está documentado así ("Thumbnails aren't
+ *   returned if the selected items belong to Google Drive"), no es un bug.
+ * - `thumbnailLink` de la Drive API sí existe, pero Google mismo advierte
+ *   que "no está pensado para usarse directo desde una web" por CORS, y
+ *   recomienda un proxy de servidor — fetch() con el access token en el
+ *   header falla ahí (lo que pasó en el primer intento).
+ *
+ * Lo único que sí tiene CORS habilitado para pedidos autenticados desde el
+ * browser es la propia Drive API REST (`www.googleapis.com/drive/v3/...`) —
+ * ya comprobado porque `files.list` (el listado de carpetas del picker
+ * mobile) anda así. Por eso esto baja el archivo real con `alt=media` en vez
+ * de una miniatura — más pesado, pero el único camino confiable sin agregar
+ * un proxy propio. Por eso mismo solo se llama para imágenes, nunca para
+ * video (bajaría el archivo entero).
  */
-export async function bajarThumbnail(
-  url: string,
+export async function bajarImagenComoDataUrl(
+  fileId: string,
   accessToken: string,
+  resourceKey?: string,
   signal?: AbortSignal
 ): Promise<string | undefined> {
   try {
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` }, signal });
+    const headers: Record<string, string> = { Authorization: `Bearer ${accessToken}` };
+    if (resourceKey) headers["X-Goog-Drive-Resource-Keys"] = `${fileId}/${resourceKey}`;
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`, {
+      headers,
+      signal,
+    });
     if (!res.ok) return undefined;
     const blob = await res.blob();
     return await new Promise<string>((resolve, reject) => {
