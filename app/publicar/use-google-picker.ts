@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { bajarThumbnail } from "./drive-thumbnail";
 
 // Google Identity Services y el Picker no tienen tipos oficiales livianos;
 // se acceden como globals cargados por script, ver loadScript() más abajo.
@@ -176,10 +177,28 @@ export function useGooglePicker() {
               mimeType: doc.mimeType,
               accessToken,
               resourceKey: doc.resourceKey,
-              thumbnailUrl: doc.thumbnails?.[0]?.url ?? doc.iconUrl,
             }))
           );
           setError(null);
+          // Las URLs de miniatura que da el Picker (doc.thumbnails/doc.iconUrl)
+          // no cargan como <img> plano (ver drive-thumbnail.ts) — se bajan
+          // autenticadas aparte y se suman a cada archivo cuando llegan, sin
+          // bloquear que la lista aparezca.
+          Promise.all(
+            data.docs.map(async (doc) => {
+              const url = doc.thumbnails?.[0]?.url ?? doc.iconUrl;
+              if (!url) return null;
+              const thumbnailUrl = await bajarThumbnail(url, accessToken);
+              return thumbnailUrl ? { id: doc.id, thumbnailUrl } : null;
+            })
+          ).then((resultados) => {
+            setArchivos((actuales) =>
+              actuales.map((a) => {
+                const resultado = resultados.find((r) => r?.id === a.id);
+                return resultado ? { ...a, thumbnailUrl: resultado.thumbnailUrl } : a;
+              })
+            );
+          });
         })
         .build();
       // El Picker centra su diálogo según el scroll de la página en el

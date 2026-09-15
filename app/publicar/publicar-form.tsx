@@ -51,10 +51,46 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
   const [enviando, setEnviando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [errorPublicar, setErrorPublicar] = useState<string | null>(null);
-  const [indiceArrastrado, setIndiceArrastrado] = useState<number | null>(null);
-  // Solo un ref porque el índice de origen no necesita disparar renders — se
-  // lee una sola vez, en el onDrop.
-  const dragOrigenRef = useRef<number | null>(null);
+  const [arrastradoId, setArrastradoId] = useState<string | null>(null);
+  const [dragOffsetY, setDragOffsetY] = useState(0);
+  // Pointer Events (no HTML5 drag-and-drop nativo: ese no anda con touch, el
+  // celular no permite arrastrar) — funciona igual con mouse y con el dedo.
+  // Solo un ref porque el estado del drag en curso no necesita disparar
+  // renders por sí solo (dragOffsetY ya lo hace).
+  const dragRef = useRef<{ id: string; startY: number; alturaFila: number } | null>(null);
+
+  function onGripPointerDown(e: React.PointerEvent<HTMLButtonElement>, id: string) {
+    const li = e.currentTarget.closest("li");
+    const alturaFila = li?.getBoundingClientRect().height || 56;
+    dragRef.current = { id, startY: e.clientY, alturaFila };
+    setArrastradoId(id);
+    setDragOffsetY(0);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function onGripPointerMove(e: React.PointerEvent<HTMLButtonElement>) {
+    const estado = dragRef.current;
+    if (!estado) return;
+    const dy = e.clientY - estado.startY;
+    setDragOffsetY(dy);
+    const desplazadas = Math.round(dy / estado.alturaFila);
+    if (desplazadas === 0) return;
+    const indiceActual = archivos.findIndex((a) => a.id === estado.id);
+    const destino = Math.max(0, Math.min(indiceActual + desplazadas, archivos.length - 1));
+    if (destino === indiceActual) return;
+    moverArchivoA(estado.id, destino);
+    // El item ya se reordenó en el DOM — reiniciar el origen acá evita que
+    // el offset visual "salte" al reflow, en vez de seguir sumando desde el
+    // punto donde arrancó el drag.
+    estado.startY = e.clientY;
+    setDragOffsetY(0);
+  }
+
+  function onGripPointerUp() {
+    dragRef.current = null;
+    setArrastradoId(null);
+    setDragOffsetY(0);
+  }
 
   const error = errorPublicar ?? errorPicker;
   const demasiadosParaCarousel = tipoPublicacion === "post" && archivos.length > MAX_ARCHIVOS_CAROUSEL;
@@ -62,6 +98,7 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
   function onTipoPublicacionChange(tipo: TipoPublicacionOption) {
     setTipoPublicacion(tipo);
     limpiarSeleccion();
+    if (tipo === "historia") setCaption("");
   }
 
   async function onSubmit(formEvent: React.FormEvent) {
@@ -117,43 +154,35 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
             {archivos.map((a, i) => (
               <li
                 key={a.id}
-                draggable={archivos.length > 1}
-                onDragStart={() => {
-                  dragOrigenRef.current = i;
-                  setIndiceArrastrado(i);
-                }}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const origen = dragOrigenRef.current;
-                  dragOrigenRef.current = null;
-                  setIndiceArrastrado(null);
-                  if (origen === null || origen === i) return;
-                  moverArchivoA(archivos[origen].id, i);
-                }}
-                onDragEnd={() => {
-                  dragOrigenRef.current = null;
-                  setIndiceArrastrado(null);
-                }}
+                style={
+                  arrastradoId === a.id
+                    ? { transform: `translateY(${dragOffsetY}px)`, position: "relative", zIndex: 10 }
+                    : undefined
+                }
                 className={`flex items-center gap-2 text-sm text-zinc-600 ${
-                  archivos.length > 1 ? "cursor-grab active:cursor-grabbing" : ""
-                } ${indiceArrastrado === i ? "opacity-40" : ""}`}
+                  arrastradoId === a.id ? "bg-white shadow-lg ring-1 ring-indigo-200" : ""
+                }`}
               >
                 {archivos.length > 1 && (
-                  <span
-                    className="select-none text-zinc-300"
-                    aria-hidden="true"
+                  <button
+                    type="button"
+                    onPointerDown={(e) => onGripPointerDown(e, a.id)}
+                    onPointerMove={onGripPointerMove}
+                    onPointerUp={onGripPointerUp}
+                    onPointerCancel={onGripPointerUp}
+                    className="flex h-10 w-10 shrink-0 touch-none select-none items-center justify-center rounded-lg text-xl text-zinc-400 hover:bg-zinc-100 active:cursor-grabbing"
                     title="Arrastrá para reordenar"
+                    aria-label={`Arrastrar ${a.nombre} para reordenar`}
                   >
                     ⠿
-                  </span>
+                  </button>
                 )}
                 {a.thumbnailUrl && (
                   // eslint-disable-next-line @next/next/no-img-element -- viene de Drive, no de next/image
                   <img
                     src={a.thumbnailUrl}
                     alt=""
-                    className="h-10 w-10 shrink-0 rounded-md object-cover"
+                    className="h-14 w-14 shrink-0 rounded-md object-cover"
                     onError={(e) => {
                       e.currentTarget.style.display = "none";
                     }}
@@ -165,7 +194,7 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
                       type="button"
                       onClick={() => moverArchivo(a.id, -1)}
                       disabled={i === 0}
-                      className="text-xs leading-none text-zinc-400 hover:text-zinc-700 disabled:opacity-20"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-sm text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-20"
                       aria-label={`Subir ${a.nombre}`}
                     >
                       ▲
@@ -174,7 +203,7 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
                       type="button"
                       onClick={() => moverArchivo(a.id, 1)}
                       disabled={i === archivos.length - 1}
-                      className="text-xs leading-none text-zinc-400 hover:text-zinc-700 disabled:opacity-20"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-sm text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-20"
                       aria-label={`Bajar ${a.nombre}`}
                     >
                       ▼
@@ -188,7 +217,7 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
                 <button
                   type="button"
                   onClick={() => quitarArchivo(a.id)}
-                  className="text-xs text-zinc-400 hover:text-rose-600"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-sm text-zinc-400 hover:bg-zinc-100 hover:text-rose-600"
                   aria-label={`Sacar ${a.nombre}`}
                 >
                   ✕
@@ -256,15 +285,17 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
         </select>
       </label>
 
-      <label className="flex flex-col gap-1 text-sm text-zinc-700">
-        Caption
-        <textarea
-          value={caption}
-          onChange={(e) => setCaption(e.target.value)}
-          rows={3}
-          className="rounded-lg border border-zinc-300 p-2 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-        />
-      </label>
+      {tipoPublicacion !== "historia" && (
+        <label className="flex flex-col gap-1 text-sm text-zinc-700">
+          Caption
+          <textarea
+            value={caption}
+            onChange={(e) => setCaption(e.target.value)}
+            rows={3}
+            className="rounded-lg border border-zinc-300 p-2 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+          />
+        </label>
+      )}
 
       <fieldset className="flex flex-col gap-2 text-sm text-zinc-700">
         <legend className="mb-1 font-medium text-zinc-900">Cuándo</legend>

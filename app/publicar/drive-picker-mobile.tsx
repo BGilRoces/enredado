@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { bajarThumbnail } from "./drive-thumbnail";
 import type { ArchivoElegido } from "./use-google-picker";
 
 /** Mismos mimeType que usa el Picker de Google en desktop (ver abrirPicker en use-google-picker.ts) — no restringir más acá. */
@@ -114,10 +115,10 @@ export function DrivePickerMobile({ accessToken, multiple, onConfirm, onClose }:
   const [error, setError] = useState<string | null>(null);
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
   const [seleccion, setSeleccion] = useState<Map<string, ArchivoElegido>>(new Map());
+  // Data URLs (no blob: URL) — no hace falta revocar nada, y evita el bug de
+  // que al confirmar la selección y cerrarse este modal se revoquen las
+  // miniaturas de los archivos recién elegidos.
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
-  // Espejo del state para el cleanup de desmontaje: un effect con deps [] captura el
-  // `thumbnails` del primer render (vacío) en su closure, no el último — necesita leerlo de un ref.
-  const thumbnailsRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -165,35 +166,14 @@ export function DrivePickerMobile({ accessToken, multiple, onConfirm, onClose }:
     const archivos = items.filter((i): i is ItemArchivo => i.tipo === "archivo" && !!i.thumbnailLink);
     for (const archivo of archivos) {
       if (thumbnails[archivo.id]) continue;
-      fetch(archivo.thumbnailLink!, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        signal: controller.signal,
-      })
-        .then((res) => (res.ok ? res.blob() : null))
-        .then((blob) => {
-          if (!blob) return;
-          const url = URL.createObjectURL(blob);
-          setThumbnails((actuales) => {
-            const nuevas = { ...actuales, [archivo.id]: url };
-            thumbnailsRef.current = nuevas;
-            return nuevas;
-          });
-        })
-        .catch(() => {
-          // Best-effort: sin miniatura se muestra el nombre igual.
-        });
+      bajarThumbnail(archivo.thumbnailLink!, accessToken, controller.signal).then((dataUrl) => {
+        if (!dataUrl) return;
+        setThumbnails((actuales) => ({ ...actuales, [archivo.id]: dataUrl }));
+      });
     }
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- solo depende de los items de la página actual.
   }, [items]);
-
-  // Las blob: URL viven en memoria del browser — hay que liberarlas al desmontar para no filtrar memoria.
-  // Lee thumbnailsRef (no el state) porque el cleanup de un effect [] corre con el closure del primer render.
-  useEffect(() => {
-    return () => {
-      Object.values(thumbnailsRef.current).forEach((url) => URL.revokeObjectURL(url));
-    };
-  }, []);
 
   function abrirRaiz(id: string, nombre: string) {
     setItems([]);
