@@ -22,7 +22,7 @@ export function CuentaFiltroForm({
       <select
         name="cuentaId"
         defaultValue={cuentaSeleccionada}
-        className="rounded border border-zinc-300 p-2 text-sm"
+        className="rounded-lg border border-zinc-200 bg-white p-2 text-sm text-zinc-700 shadow-sm"
       >
         <option value="">Todas las Cuentas</option>
         {cuentas.map((cuenta) => (
@@ -32,7 +32,10 @@ export function CuentaFiltroForm({
         ))}
       </select>
       {children}
-      <button type="submit" className="rounded border border-zinc-300 px-3 py-2 text-sm font-medium">
+      <button
+        type="submit"
+        className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50"
+      >
         Filtrar
       </button>
     </form>

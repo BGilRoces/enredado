@@ -1,5 +1,5 @@
 import type { Cuenta, Publicacion } from "@prisma/client";
-import { etiquetaEstado } from "./etiqueta-estado";
+import { claseBadgeEstado, etiquetaEstado } from "./etiqueta-estado";
 
 /** Encabezado (Cuenta · tipo · estado) + motivo de falla, reusado en toda lista de Publicaciones. */
 export function PublicacionResumen({
@@ -12,12 +12,16 @@ export function PublicacionResumen({
   const cantidadArchivos = publicacion._count?.archivos ?? 0;
   return (
     <>
-      <div className="flex items-center justify-between">
-        <span className="font-medium">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-medium text-zinc-900">
           {publicacion.cuenta.nombre} · {publicacion.tipo}
           {cantidadArchivos > 1 && ` · carousel (${cantidadArchivos})`}
         </span>
-        <span className="text-xs text-zinc-500">{etiquetaEstado(publicacion)}</span>
+        <span
+          className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${claseBadgeEstado(publicacion)}`}
+        >
+          {etiquetaEstado(publicacion)}
+        </span>
       </div>
       {mostrarFecha && (
         <p className="text-xs text-zinc-500">
@@ -27,7 +31,7 @@ export function PublicacionResumen({
             : ""}
         </p>
       )}
-      {publicacion.error && <p className="text-red-700">{publicacion.error}</p>}
+      {publicacion.error && <p className="text-sm text-rose-700">{publicacion.error}</p>}
     </>
   );
 }

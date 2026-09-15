@@ -10,6 +10,9 @@ interface GooglePickerDoc {
   mimeType: string;
   /** Presente cuando el archivo se compartió por link (no directo con la cuenta) — Drive lo exige para poder leerlo. */
   resourceKey?: string;
+  /** Preview chica que sirve la sesión de Google del navegador — sin esto no hay miniatura para algunos videos. */
+  iconUrl?: string;
+  thumbnails?: { url: string }[];
 }
 
 interface GooglePickerResponse {
@@ -84,6 +87,8 @@ export interface ArchivoElegido {
   mimeType: string;
   accessToken: string;
   resourceKey?: string;
+  /** Preview antes de subir — puede faltar (Drive no siempre la genera). */
+  thumbnailUrl?: string;
 }
 
 function loadScript(src: string): Promise<void> {
@@ -153,6 +158,7 @@ export function useGooglePicker() {
               mimeType: doc.mimeType,
               accessToken,
               resourceKey: doc.resourceKey,
+              thumbnailUrl: doc.thumbnails?.[0]?.url ?? doc.iconUrl,
             }))
           );
           setError(null);
@@ -205,9 +211,23 @@ export function useGooglePicker() {
     });
   }
 
+  /** Igual que moverArchivo, pero a una posición arbitraria — la usa el drag & drop. */
+  function moverArchivoA(id: string, indiceDestino: number) {
+    setArchivos((actuales) => {
+      const desde = actuales.findIndex((a) => a.id === id);
+      if (desde === -1) return actuales;
+      const destino = Math.max(0, Math.min(indiceDestino, actuales.length - 1));
+      if (desde === destino) return actuales;
+      const copia = [...actuales];
+      const [item] = copia.splice(desde, 1);
+      copia.splice(destino, 0, item);
+      return copia;
+    });
+  }
+
   function limpiarSeleccion() {
     setArchivos([]);
   }
 
-  return { archivos, elegirDeDrive, quitarArchivo, moverArchivo, limpiarSeleccion, error };
+  return { archivos, elegirDeDrive, quitarArchivo, moverArchivo, moverArchivoA, limpiarSeleccion, error };
 }

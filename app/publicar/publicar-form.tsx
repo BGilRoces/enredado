@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { crearPublicacion } from "./actions";
 import { useGooglePicker } from "./use-google-picker";
 
@@ -34,6 +34,7 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
     elegirDeDrive,
     quitarArchivo,
     moverArchivo,
+    moverArchivoA,
     limpiarSeleccion,
     error: errorPicker,
   } = useGooglePicker();
@@ -45,6 +46,10 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
   const [enviando, setEnviando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [errorPublicar, setErrorPublicar] = useState<string | null>(null);
+  const [indiceArrastrado, setIndiceArrastrado] = useState<number | null>(null);
+  // Solo un ref porque el índice de origen no necesita disparar renders — se
+  // lee una sola vez, en el onDrop.
+  const dragOrigenRef = useRef<number | null>(null);
 
   const error = errorPublicar ?? errorPicker;
   const demasiadosParaCarousel = tipoPublicacion === "post" && archivos.length > MAX_ARCHIVOS_CAROUSEL;
@@ -90,19 +95,65 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+    <form
+      onSubmit={onSubmit}
+      className="flex flex-col gap-5 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm"
+    >
       <div className="flex flex-col gap-2">
         <button
           type="button"
           onClick={() => elegirDeDrive({ multiple: tipoPublicacion !== "reel" })}
-          className="self-start rounded border border-zinc-300 px-3 py-2 text-sm font-medium"
+          className="self-start rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-100"
         >
           Elegir de Google Drive
         </button>
         {archivos.length > 0 && (
-          <ul className="flex flex-col gap-1">
+          <ul className="flex flex-col gap-1 rounded-lg border border-zinc-200 bg-zinc-50 p-2">
             {archivos.map((a, i) => (
-              <li key={a.id} className="flex items-center gap-2 text-sm text-zinc-600">
+              <li
+                key={a.id}
+                draggable={archivos.length > 1}
+                onDragStart={() => {
+                  dragOrigenRef.current = i;
+                  setIndiceArrastrado(i);
+                }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const origen = dragOrigenRef.current;
+                  dragOrigenRef.current = null;
+                  setIndiceArrastrado(null);
+                  if (origen === null || origen === i) return;
+                  moverArchivoA(archivos[origen].id, i);
+                }}
+                onDragEnd={() => {
+                  dragOrigenRef.current = null;
+                  setIndiceArrastrado(null);
+                }}
+                className={`flex items-center gap-2 text-sm text-zinc-600 ${
+                  archivos.length > 1 ? "cursor-grab active:cursor-grabbing" : ""
+                } ${indiceArrastrado === i ? "opacity-40" : ""}`}
+              >
+                {archivos.length > 1 && (
+                  <span
+                    className="select-none text-zinc-300"
+                    aria-hidden="true"
+                    title="Arrastrá para reordenar"
+                  >
+                    ⠿
+                  </span>
+                )}
+                {a.thumbnailUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element -- viene de Drive, no de next/image
+                  <img
+                    src={a.thumbnailUrl}
+                    alt=""
+                    className="h-10 w-10 shrink-0 rounded-md object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
+                )}
                 {archivos.length > 1 && (
                   <span className="flex flex-col">
                     <button
@@ -132,7 +183,7 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
                 <button
                   type="button"
                   onClick={() => quitarArchivo(a.id)}
-                  className="text-xs text-zinc-400 hover:text-zinc-700"
+                  className="text-xs text-zinc-400 hover:text-rose-600"
                   aria-label={`Sacar ${a.nombre}`}
                 >
                   ✕
@@ -147,7 +198,7 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
           </span>
         )}
         {demasiadosParaCarousel && (
-          <span className="text-xs text-red-700">
+          <span className="text-xs text-rose-700">
             Instagram permite hasta {MAX_ARCHIVOS_CAROUSEL} elementos por carousel — sacá alguno.
           </span>
         )}
@@ -158,12 +209,12 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
         )}
       </div>
 
-      <label className="flex flex-col gap-1 text-sm">
+      <label className="flex flex-col gap-1 text-sm text-zinc-700">
         Tipo de Publicación
         <select
           value={tipoPublicacion}
           onChange={(e) => onTipoPublicacionChange(e.target.value as TipoPublicacionOption)}
-          className="rounded border border-zinc-300 p-2"
+          className="rounded-lg border border-zinc-300 p-2 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
         >
           {TIPOS.map((tipo) => (
             <option key={tipo.value} value={tipo.value}>
@@ -176,12 +227,12 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
         )}
       </label>
 
-      <label className="flex flex-col gap-1 text-sm">
+      <label className="flex flex-col gap-1 text-sm text-zinc-700">
         Cuenta de Instagram
         <select
           value={cuentaId}
           onChange={(e) => setCuentaId(e.target.value)}
-          className="rounded border border-zinc-300 p-2"
+          className="rounded-lg border border-zinc-300 p-2 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
         >
           {cuentas.map((cuenta) => (
             <option key={cuenta.id} value={cuenta.id}>
@@ -191,23 +242,24 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
         </select>
       </label>
 
-      <label className="flex flex-col gap-1 text-sm">
+      <label className="flex flex-col gap-1 text-sm text-zinc-700">
         Caption
         <textarea
           value={caption}
           onChange={(e) => setCaption(e.target.value)}
           rows={3}
-          className="rounded border border-zinc-300 p-2"
+          className="rounded-lg border border-zinc-300 p-2 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
         />
       </label>
 
-      <fieldset className="flex flex-col gap-2 text-sm">
-        <legend className="mb-1 font-medium">Cuándo</legend>
+      <fieldset className="flex flex-col gap-2 text-sm text-zinc-700">
+        <legend className="mb-1 font-medium text-zinc-900">Cuándo</legend>
         <label className="flex items-center gap-2">
           <input
             type="radio"
             checked={cuando === "ahora"}
             onChange={() => setCuando("ahora")}
+            className="accent-indigo-600"
           />
           Ahora
         </label>
@@ -216,6 +268,7 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
             type="radio"
             checked={cuando === "programar"}
             onChange={() => setCuando("programar")}
+            className="accent-indigo-600"
           />
           Programar para
         </label>
@@ -225,7 +278,7 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
             value={programadaPara}
             onChange={(e) => setProgramadaPara(e.target.value)}
             required
-            className="rounded border border-zinc-300 p-2"
+            className="rounded-lg border border-zinc-300 p-2 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
           />
         )}
         {cuando === "programar" && (
@@ -236,13 +289,13 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
       <button
         type="submit"
         disabled={archivos.length === 0 || demasiadosParaCarousel || enviando}
-        className="rounded bg-zinc-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-40"
+        className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-40"
       >
         {enviando ? "Enviando..." : cuando === "programar" ? "Programar" : "Publicar ahora"}
       </button>
 
-      {mensaje && <p className="rounded bg-green-50 p-3 text-sm text-green-700">{mensaje}</p>}
-      {error && <p className="rounded bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {mensaje && <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">{mensaje}</p>}
+      {error && <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
     </form>
   );
 }

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { CuentaFiltroForm } from "@/components/cuenta-filtro-form";
 import { PublicacionResumen } from "@/components/publicacion-resumen";
 import { ETIQUETAS_POR_ESTADO } from "@/components/etiqueta-estado";
+import { AppShell } from "@/components/app-shell";
 
 // Igual que /publicar: la lista tiene que ser siempre fresca, no cacheable
 // en build time (ahí tampoco hay DATABASE_URL disponible).
@@ -44,11 +45,11 @@ export default async function HistorialPage({
   });
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
+    <AppShell active="historial">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Historial</h1>
-        <a href="/publicar" className="text-sm underline">
-          Publicar
+        <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Historial</h1>
+        <a href="/publicar" className="text-sm font-medium text-indigo-600 hover:text-indigo-700">
+          Publicar →
         </a>
       </div>
 
@@ -56,7 +57,7 @@ export default async function HistorialPage({
         <select
           name="estado"
           defaultValue={estadoFiltro}
-          className="rounded border border-zinc-300 p-2 text-sm"
+          className="rounded-lg border border-zinc-200 bg-white p-2 text-sm text-zinc-700 shadow-sm"
         >
           <option value="">Todos los estados</option>
           {ESTADOS.map((estado) => (
@@ -74,13 +75,13 @@ export default async function HistorialPage({
           {publicaciones.map((publicacion) => (
             <li
               key={publicacion.id}
-              className="flex flex-col gap-1 rounded border border-zinc-200 p-3 text-sm"
+              className="flex flex-col gap-1 rounded-2xl border border-zinc-200 bg-white p-4 text-sm shadow-sm"
             >
               <PublicacionResumen publicacion={publicacion} mostrarFecha />
             </li>
           ))}
         </ul>
       )}
-    </div>
+    </AppShell>
   );
 }

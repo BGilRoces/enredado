@@ -4,6 +4,8 @@ import { PublicarForm } from "./publicar-form";
 import { cancelarPublicacion, editarPublicacion } from "./actions";
 import { CuentaFiltroForm } from "@/components/cuenta-filtro-form";
 import { PublicacionResumen } from "@/components/publicacion-resumen";
+import { PublicacionFilaExpandible } from "@/components/publicacion-fila-expandible";
+import { AppShell } from "@/components/app-shell";
 
 // Sin esto, Next intenta prerenderizar la página en build time (no hay
 // DATABASE_URL disponible ahí) — la lista de Cuentas/Publicaciones necesita
@@ -49,22 +51,26 @@ export default async function PublicarPage({
     },
     orderBy: { creadaEn: "desc" },
     take: 10,
-    include: { cuenta: true, _count: { select: { archivos: true } } },
+    include: {
+      cuenta: true,
+      archivos: { orderBy: { orden: "asc" } },
+      _count: { select: { archivos: true } },
+    },
   });
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-8 p-8">
+    <AppShell active="publicar">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Publicar</h1>
-        <a href="/historial" className="text-sm underline">
-          Ver historial completo
+        <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Publicar</h1>
+        <a href="/historial" className="text-sm font-medium text-indigo-600 hover:text-indigo-700">
+          Ver historial completo →
         </a>
       </div>
 
       {cuentas.length === 0 ? (
         <p className="text-sm text-zinc-500">
           No hay Cuentas conectadas.{" "}
-          <a href="/cuentas" className="underline">
+          <a href="/cuentas" className="font-medium text-indigo-600 hover:text-indigo-700">
             Conectá una
           </a>{" "}
           primero.
@@ -92,7 +98,7 @@ export default async function PublicarPage({
             {pendientes.map((publicacion) => (
               <li
                 key={publicacion.id}
-                className="flex flex-col gap-2 rounded border border-zinc-200 p-3 text-sm"
+                className="flex flex-col gap-2 rounded-2xl border border-zinc-200 bg-white p-4 text-sm shadow-sm"
               >
                 <PublicacionResumen publicacion={publicacion} mostrarFecha />
 
@@ -114,20 +120,20 @@ export default async function PublicarPage({
                         name="caption"
                         defaultValue={publicacion.caption ?? ""}
                         rows={2}
-                        className="rounded border border-zinc-300 p-2 text-sm"
+                        className="rounded-lg border border-zinc-300 p-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
                       />
                       <input
                         type="datetime-local"
                         name="programadaPara"
                         defaultValue={aInputDatetimeLocal(publicacion.programadaPara)}
-                        className="rounded border border-zinc-300 p-2 text-sm"
+                        className="rounded-lg border border-zinc-300 p-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
                       />
                       <span className="text-xs text-zinc-500">
                         Hora UTC. Dejá el campo vacío para pasar a &quot;ahora&quot;.
                       </span>
                       <button
                         type="submit"
-                        className="self-start rounded border border-zinc-300 px-2 py-1 text-xs font-medium"
+                        className="self-start rounded-lg border border-zinc-300 px-2 py-1 text-xs font-medium transition-colors hover:bg-zinc-50"
                       >
                         Guardar cambios
                       </button>
@@ -140,7 +146,7 @@ export default async function PublicarPage({
                     >
                       <button
                         type="submit"
-                        className="rounded border border-red-300 px-2 py-1 text-xs text-red-700"
+                        className="rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-700 transition-colors hover:bg-rose-50"
                       >
                         Cancelar
                       </button>
@@ -158,13 +164,11 @@ export default async function PublicarPage({
           <h2 className="text-sm font-medium text-zinc-700">Últimas Publicaciones</h2>
           <ul className="flex flex-col gap-2">
             {publicaciones.map((publicacion) => (
-              <li key={publicacion.id} className="rounded border border-zinc-200 p-3 text-sm">
-                <PublicacionResumen publicacion={publicacion} />
-              </li>
+              <PublicacionFilaExpandible key={publicacion.id} publicacion={publicacion} />
             ))}
           </ul>
         </div>
       )}
-    </div>
+    </AppShell>
   );
 }
