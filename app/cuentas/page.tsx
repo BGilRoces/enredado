@@ -4,6 +4,7 @@ import { obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
 import { desconectarCuenta } from "./actions";
 import { LIMITE_PUBLICACIONES_POR_VENTANA, VENTANA_LIMITE_MS } from "@/lib/limite-diario/excedio-limite-diario";
 import { AppShell } from "@/components/app-shell";
+import { EliminarCuentaBoton } from "@/components/eliminar-cuenta-boton";
 
 const ETIQUETA_ESTADO_CUENTA: Record<EstadoCuenta, string> = {
   conectada: "Conectada",
@@ -140,6 +141,9 @@ export default async function CuentasPage({
                 >
                   Reconectar
                 </a>
+              )}
+              {cuenta.estado === EstadoCuenta.desconectada && (
+                <EliminarCuentaBoton id={cuenta.id} nombre={cuenta.nombre} />
               )}
             </li>
           ))}

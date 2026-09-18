@@ -7,6 +7,7 @@ import { mensajeDeError } from "@/lib/mensaje-de-error";
 import { claseBadgeEstadoIdea, etiquetaEstadoIdea } from "@/components/etiqueta-estado-idea";
 import { claseBadgeEstado, etiquetaEstado } from "@/components/etiqueta-estado";
 import { AppShell } from "@/components/app-shell";
+import { CarpetaIdeaArchivos } from "@/components/carpeta-idea-archivos";
 import {
   actualizarIdea,
   calendarizarIdea,
@@ -14,7 +15,6 @@ import {
   descalendarizarIdea,
   eliminarIdea,
   marcarEnDrive,
-  moverArchivoIdea,
 } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -216,53 +216,7 @@ export default async function IdeaPage({
           </form>
 
           {idea.archivos.length > 0 && (
-            <div className="mt-2 flex flex-col gap-1">
-              <p className="text-sm font-medium text-zinc-700">
-                Orden de la carpeta ({idea.archivos.length} archivo{idea.archivos.length === 1 ? "" : "s"})
-              </p>
-              <ul className="flex flex-col gap-1">
-                {idea.archivos.map((archivo, i) => (
-                  <li
-                    key={archivo.id}
-                    className="flex items-center justify-between gap-2 rounded-lg border border-zinc-200 p-2 text-xs"
-                  >
-                    <span className="truncate text-zinc-700">
-                      {i + 1}. {archivo.nombre ?? archivo.driveFileId}
-                    </span>
-                    <span className="flex shrink-0 gap-1">
-                      <form
-                        action={async () => {
-                          "use server";
-                          await conManejoDeError(id, () => moverArchivoIdea(id, archivo.id, "arriba"));
-                        }}
-                      >
-                        <button
-                          type="submit"
-                          disabled={i === 0}
-                          className="rounded border border-zinc-300 px-1.5 py-0.5 disabled:opacity-30"
-                        >
-                          ↑
-                        </button>
-                      </form>
-                      <form
-                        action={async () => {
-                          "use server";
-                          await conManejoDeError(id, () => moverArchivoIdea(id, archivo.id, "abajo"));
-                        }}
-                      >
-                        <button
-                          type="submit"
-                          disabled={i === idea.archivos.length - 1}
-                          className="rounded border border-zinc-300 px-1.5 py-0.5 disabled:opacity-30"
-                        >
-                          ↓
-                        </button>
-                      </form>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <CarpetaIdeaArchivos ideaId={id} archivosIniciales={idea.archivos} />
           )}
         </div>
       )}

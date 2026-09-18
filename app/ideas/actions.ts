@@ -189,24 +189,41 @@ export async function marcarEnDrive(id: string, driveLink: string): Promise<void
   revalidarIdeas();
 }
 
-/** Reordena los archivos de la carpeta de una Idea (ver ADR-0016) — swap simple con el vecino, sin drag-and-drop. */
-export async function moverArchivoIdea(id: string, archivoId: string, direccion: "arriba" | "abajo"): Promise<void> {
+/** Reordena los archivos de la carpeta de una Idea por drag-and-drop: recibe la lista completa de ids en el orden final. */
+export async function reordenarArchivosIdea(id: string, idsEnOrden: string[]): Promise<void> {
   const idea = await obtenerIdeaOTirar(id);
   asegurarNoPromocionada(idea);
 
-  const archivos = await prisma.ideaArchivo.findMany({ where: { ideaId: id }, orderBy: { orden: "asc" } });
-  const indice = archivos.findIndex((a) => a.id === archivoId);
-  if (indice === -1) throw new Error("Archivo no encontrado.");
+  const archivos = await prisma.ideaArchivo.findMany({ where: { ideaId: id } });
+  const mismosIds =
+    idsEnOrden.length === archivos.length && archivos.every((a) => idsEnOrden.includes(a.id));
+  if (!mismosIds) {
+    throw new Error("La lista de archivos cambió mientras tanto — recargá la página e intentá de nuevo.");
+  }
 
-  const destino = direccion === "arriba" ? indice - 1 : indice + 1;
-  if (destino < 0 || destino >= archivos.length) return; // ya está en la punta, no-op
+  await prisma.$transaction(
+    idsEnOrden.map((archivoId, orden) => prisma.ideaArchivo.update({ where: { id: archivoId }, data: { orden } }))
+  );
+  revalidarIdeas();
+}
 
-  const actual = archivos[indice];
-  const vecino = archivos[destino];
-  await prisma.$transaction([
-    prisma.ideaArchivo.update({ where: { id: actual.id }, data: { orden: vecino.orden } }),
-    prisma.ideaArchivo.update({ where: { id: vecino.id }, data: { orden: actual.orden } }),
-  ]);
+/**
+ * Saca un archivo de la carpeta cargada sin subirlo — no toca nada en Drive,
+ * sólo la selección local de la Idea. No deja vaciar del todo (ver
+ * promoverIdea): si el usuario quiere una carpeta vacía tiene que sacar el
+ * link de Drive en vez de borrar archivo por archivo.
+ */
+export async function eliminarArchivoIdea(id: string, archivoId: string): Promise<void> {
+  const idea = await obtenerIdeaOTirar(id);
+  asegurarNoPromocionada(idea);
+
+  const restantes = await prisma.ideaArchivo.count({ where: { ideaId: id } });
+  if (restantes <= 1) {
+    throw new Error("No podés sacar el último archivo de la carpeta — pegá otro link de Drive si querés vaciarla.");
+  }
+
+  const { count } = await prisma.ideaArchivo.deleteMany({ where: { id: archivoId, ideaId: id } });
+  if (count === 0) throw new Error("Archivo no encontrado.");
   revalidarIdeas();
 }
 

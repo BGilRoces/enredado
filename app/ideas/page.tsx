@@ -51,10 +51,6 @@ export default async function IdeasPage({
         <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Ideas</h1>
         <div className="flex items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- mismo patrón que el resto del panel, sin next/link */}
-          <a href="/ideas/calendario" className="text-sm font-medium text-indigo-600 hover:text-indigo-700">
-            Calendario →
-          </a>
-          {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- mismo patrón que el resto del panel, sin next/link */}
           <a
             href="/ideas/nueva"
             className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800"

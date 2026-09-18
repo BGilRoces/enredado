@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import type { Cuenta, EstadoPublicacion, Idea } from "@prisma/client";
 import { claseBadgeEstadoIdea, etiquetaEstadoIdea } from "./etiqueta-estado-idea";
 import { esAtrasada } from "@/lib/ideas/es-atrasada";
+import { mensajeDeError } from "@/lib/mensaje-de-error";
+import { eliminarIdea } from "@/app/ideas/actions";
 
 type IdeaConRelaciones = Idea & {
   cuenta: Cuenta;
@@ -13,7 +15,21 @@ type IdeaConRelaciones = Idea & {
 /** Fila colapsable del notebook: título + badge + Cuenta; expandida muestra descripción/guión/links. */
 export function IdeaFilaExpandible({ idea, ahora }: { idea: IdeaConRelaciones; ahora: Date }) {
   const [abierta, setAbierta] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [eliminando, startTransition] = useTransition();
   const atrasada = esAtrasada(ahora, { ...idea, yaPromocionada: idea.publicaciones.length > 0 });
+
+  function eliminar() {
+    if (!window.confirm(`¿Eliminar "${idea.titulo}"? No se puede deshacer.`)) return;
+    setError(null);
+    startTransition(async () => {
+      try {
+        await eliminarIdea(idea.id);
+      } catch (err) {
+        setError(mensajeDeError(err));
+      }
+    });
+  }
 
   return (
     <li className="rounded-2xl border border-zinc-200 bg-white p-4 text-sm shadow-sm">
@@ -66,9 +82,20 @@ export function IdeaFilaExpandible({ idea, ahora }: { idea: IdeaConRelaciones; a
               ))}
             </div>
           )}
-          <a href={`/ideas/${idea.id}`} className="w-fit text-xs font-medium text-indigo-600 hover:text-indigo-700">
-            Editar →
-          </a>
+          <div className="flex items-center justify-between gap-2">
+            <a href={`/ideas/${idea.id}`} className="text-xs font-medium text-indigo-600 hover:text-indigo-700">
+              Editar →
+            </a>
+            <button
+              type="button"
+              onClick={eliminar}
+              disabled={eliminando}
+              className="text-xs font-medium text-rose-600 hover:text-rose-700 disabled:opacity-50"
+            >
+              {eliminando ? "Eliminando…" : "Eliminar"}
+            </button>
+          </div>
+          {error && <p className="text-xs text-rose-700">{error}</p>}
         </div>
       )}
     </li>
