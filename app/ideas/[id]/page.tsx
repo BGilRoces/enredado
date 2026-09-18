@@ -31,6 +31,28 @@ function aInputDatetimeLocal(fecha: Date | null): string {
   return fecha ? fecha.toISOString().slice(0, 16) : "";
 }
 
+/**
+ * Estas acciones corren desde un <form> plano, sin JS de cliente que pueda
+ * atrapar un throw y mostrarlo lindo — sin esto, cualquier error de
+ * validación (ej. un link de Drive con formato raro) crashea toda la página
+ * en vez de mostrar el mensaje. redirect() dentro del catch nunca se atrapa
+ * a sí mismo, así que es seguro.
+ *
+ * Tiene que vivir a nivel de módulo, no adentro de IdeaPage: una Server
+ * Action inline sólo puede cerrar sobre datos serializables de su clausura
+ * (ver "use server" de Next.js) — cerrar sobre una función común (no
+ * marcada "use server") definida en el cuerpo del componente rompe TODAS las
+ * acciones que la referencian, con el error "Functions cannot be passed
+ * directly to Client Components" (encontrado en los logs de producción).
+ */
+async function conManejoDeError(id: string, accion: () => Promise<void>): Promise<void> {
+  try {
+    await accion();
+  } catch (err) {
+    redirect(`/ideas/${id}?error=${encodeURIComponent(mensajeDeError(err))}`);
+  }
+}
+
 export default async function IdeaPage({
   params,
   searchParams,
@@ -51,22 +73,9 @@ export default async function IdeaPage({
   const promocionada = idea.publicacionId !== null;
   const atrasada = esAtrasada(new Date(), idea);
 
-  // Estas acciones corren desde un <form> plano, sin JS de cliente que pueda
-  // atrapar un throw y mostrarlo lindo — sin este try/catch, cualquier error
-  // de validación (ej. un link de Drive con formato raro) crashea toda la
-  // página en vez de mostrar el mensaje. redirect() dentro del catch nunca
-  // se atrapa a sí mismo, así que es seguro.
-  async function conManejoDeError(accion: () => Promise<void>) {
-    try {
-      await accion();
-    } catch (err) {
-      redirect(`/ideas/${id}?error=${encodeURIComponent(mensajeDeError(err))}`);
-    }
-  }
-
   async function guardar(formData: FormData) {
     "use server";
-    await conManejoDeError(() =>
+    await conManejoDeError(id, () =>
       actualizarIdea(id, {
         titulo: String(formData.get("titulo") ?? ""),
         descripcion: String(formData.get("descripcion") ?? ""),
@@ -80,13 +89,13 @@ export default async function IdeaPage({
 
   async function guardarDrive(formData: FormData) {
     "use server";
-    await conManejoDeError(() => marcarEnDrive(id, String(formData.get("driveLink") ?? "")));
+    await conManejoDeError(id, () => marcarEnDrive(id, String(formData.get("driveLink") ?? "")));
   }
 
   async function guardarCalendario(formData: FormData) {
     "use server";
     const valor = String(formData.get("programadaPara") ?? "");
-    await conManejoDeError(() =>
+    await conManejoDeError(id, () =>
       valor ? calendarizarIdea(id, new Date(valor)) : descalendarizarIdea(id)
     );
   }
@@ -141,7 +150,7 @@ export default async function IdeaPage({
                 key={estado}
                 action={async () => {
                   "use server";
-                  await conManejoDeError(() => cambiarEstadoIdea(id, estado));
+                  await conManejoDeError(id, () => cambiarEstadoIdea(id, estado));
                 }}
               >
                 <button
