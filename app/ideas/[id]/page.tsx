@@ -3,6 +3,7 @@ import { EstadoIdea } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { asegurarAccesoACuenta } from "@/lib/auth/cuenta-permitida";
 import { esAtrasada } from "@/lib/ideas/es-atrasada";
+import { mensajeDeError } from "@/lib/mensaje-de-error";
 import { claseBadgeEstadoIdea, etiquetaEstadoIdea } from "@/components/etiqueta-estado-idea";
 import { AppShell } from "@/components/app-shell";
 import {
@@ -30,8 +31,15 @@ function aInputDatetimeLocal(fecha: Date | null): string {
   return fecha ? fecha.toISOString().slice(0, 16) : "";
 }
 
-export default async function IdeaPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function IdeaPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const { id } = await params;
+  const { error } = await searchParams;
 
   const idea = await prisma.idea.findUnique({
     where: { id },
@@ -43,36 +51,56 @@ export default async function IdeaPage({ params }: { params: Promise<{ id: strin
   const promocionada = idea.publicacionId !== null;
   const atrasada = esAtrasada(new Date(), idea);
 
+  // Estas acciones corren desde un <form> plano, sin JS de cliente que pueda
+  // atrapar un throw y mostrarlo lindo — sin este try/catch, cualquier error
+  // de validación (ej. un link de Drive con formato raro) crashea toda la
+  // página en vez de mostrar el mensaje. redirect() dentro del catch nunca
+  // se atrapa a sí mismo, así que es seguro.
+  async function conManejoDeError(accion: () => Promise<void>) {
+    try {
+      await accion();
+    } catch (err) {
+      redirect(`/ideas/${id}?error=${encodeURIComponent(mensajeDeError(err))}`);
+    }
+  }
+
   async function guardar(formData: FormData) {
     "use server";
-    await actualizarIdea(id, {
-      titulo: String(formData.get("titulo") ?? ""),
-      descripcion: String(formData.get("descripcion") ?? ""),
-      guion: String(formData.get("guion") ?? ""),
-      linkReferencia1: String(formData.get("linkReferencia1") ?? ""),
-      linkReferencia2: String(formData.get("linkReferencia2") ?? ""),
-      caption: String(formData.get("caption") ?? ""),
-    });
+    await conManejoDeError(() =>
+      actualizarIdea(id, {
+        titulo: String(formData.get("titulo") ?? ""),
+        descripcion: String(formData.get("descripcion") ?? ""),
+        guion: String(formData.get("guion") ?? ""),
+        linkReferencia1: String(formData.get("linkReferencia1") ?? ""),
+        linkReferencia2: String(formData.get("linkReferencia2") ?? ""),
+        caption: String(formData.get("caption") ?? ""),
+      })
+    );
   }
 
   async function guardarDrive(formData: FormData) {
     "use server";
-    await marcarEnDrive(id, String(formData.get("driveLink") ?? ""));
+    await conManejoDeError(() => marcarEnDrive(id, String(formData.get("driveLink") ?? "")));
   }
 
   async function guardarCalendario(formData: FormData) {
     "use server";
     const valor = String(formData.get("programadaPara") ?? "");
-    if (!valor) {
-      await descalendarizarIdea(id);
-      return;
-    }
-    await calendarizarIdea(id, new Date(valor));
+    await conManejoDeError(() =>
+      valor ? calendarizarIdea(id, new Date(valor)) : descalendarizarIdea(id)
+    );
   }
 
   async function borrar() {
     "use server";
-    await eliminarIdea(id);
+    // El redirect de éxito queda fuera del try/catch a propósito: redirect()
+    // funciona tirando una excepción especial de Next.js, que un catch
+    // genérico atraparía como si fuera un error real.
+    try {
+      await eliminarIdea(id);
+    } catch (err) {
+      redirect(`/ideas/${id}?error=${encodeURIComponent(mensajeDeError(err))}`);
+    }
     redirect("/ideas");
   }
 
@@ -87,6 +115,9 @@ export default async function IdeaPage({ params }: { params: Promise<{ id: strin
       <p className="text-sm text-zinc-500">
         {idea.cuenta.nombre} · {idea.tipo}
       </p>
+      {typeof error === "string" && (
+        <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>
+      )}
       {atrasada && (
         <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">
           Atrasada: la hora programada ya pasó y esta idea todavía no está &quot;en Drive&quot;, así que no se
@@ -110,7 +141,7 @@ export default async function IdeaPage({ params }: { params: Promise<{ id: strin
                 key={estado}
                 action={async () => {
                   "use server";
-                  await cambiarEstadoIdea(id, estado);
+                  await conManejoDeError(() => cambiarEstadoIdea(id, estado));
                 }}
               >
                 <button
