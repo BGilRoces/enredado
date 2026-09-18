@@ -170,6 +170,10 @@ export default async function IdeaPage({
 
           <form action={guardarDrive} className="mt-2 flex flex-col gap-2">
             <label className="text-sm font-medium text-zinc-700">Link de Drive (marca &quot;en Drive&quot;)</label>
+            <p className="text-xs text-zinc-500">
+              El link del archivo puntual (botón derecho sobre el video/foto → &quot;Compartir&quot; → &quot;Copiar
+              enlace&quot;), no el de la carpeta.
+            </p>
             <div className="flex gap-2">
               <input
                 name="driveLink"

@@ -4,6 +4,21 @@ export interface DriveLinkParseado {
 }
 
 const PATRON_PATH = /\/file\/d\/([^/]+)/;
+const PATRON_CARPETA = /\/drive\/folders\//;
+
+/**
+ * Un link de carpeta (`.../drive/folders/<id>`) es un error de uso muy común
+ * acá — el usuario comparte la carpeta donde subió todo en vez del archivo
+ * puntual — y merece un mensaje más específico que "no lo reconozco" (ver
+ * app/ideas/actions.ts).
+ */
+export function esLinkDeCarpeta(link: string): boolean {
+  try {
+    return PATRON_CARPETA.test(new URL(link.trim()).pathname);
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Extrae el driveFileId (y el resourceKey, si el link lo trae — Drive lo

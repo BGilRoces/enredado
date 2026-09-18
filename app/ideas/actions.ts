@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { EstadoIdea, EstadoPublicacion, TipoPublicacion, type Idea } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { asegurarAccesoACuenta } from "@/lib/auth/cuenta-permitida";
-import { parsearDriveLink } from "@/lib/ideas/parsear-drive-file-id";
+import { esLinkDeCarpeta, parsearDriveLink } from "@/lib/ideas/parsear-drive-file-id";
 import { cancelarPublicacion } from "@/app/publicar/actions";
 
 function revalidarIdeas() {
@@ -108,7 +108,12 @@ export async function marcarEnDrive(id: string, driveLink: string): Promise<void
 
   const parseado = parsearDriveLink(driveLink);
   if (!parseado) {
-    throw new Error("Ese link no parece ser de un archivo de Google Drive (probá con el de \"Compartir\").");
+    if (esLinkDeCarpeta(driveLink)) {
+      throw new Error(
+        'Ese es el link de una carpeta, no de un archivo — una Idea necesita el archivo puntual. Abrí la carpeta, botón derecho sobre el video/foto → "Compartir" → "Copiar enlace", y pegá ese.'
+      );
+    }
+    throw new Error('Ese link no parece ser de un archivo de Google Drive (probá con el de "Compartir").');
   }
 
   await prisma.idea.update({
