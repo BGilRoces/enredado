@@ -21,17 +21,36 @@ export async function tick(): Promise<void> {
   corriendo = true;
   try {
     const candidatas = await prisma.idea.findMany({
-      where: { estado: EstadoIdea.enDrive, publicacionId: null, programadaPara: { not: null } },
-      select: { id: true, estado: true, programadaPara: true, driveFileId: true, publicacionId: true },
+      where: { estado: EstadoIdea.enDrive, publicaciones: { none: {} }, programadaPara: { not: null } },
+      select: {
+        id: true,
+        estado: true,
+        programadaPara: true,
+        driveFileId: true,
+        _count: { select: { archivos: true, publicaciones: true } },
+      },
     });
 
-    const promovibles = decidirIdeasParaPromover(new Date(), candidatas);
+    const promovibles = decidirIdeasParaPromover(
+      new Date(),
+      candidatas.map((idea) => ({
+        id: idea.id,
+        estado: idea.estado,
+        programadaPara: idea.programadaPara,
+        driveFileId: idea.driveFileId,
+        tieneArchivos: idea._count.archivos > 0,
+        yaPromocionada: idea._count.publicaciones > 0,
+      }))
+    );
     if (promovibles.length === 0) return;
 
     for (const id of promovibles) {
-      const idea = await prisma.idea.findUnique({ where: { id } });
+      const idea = await prisma.idea.findUnique({
+        where: { id },
+        include: { archivos: true, _count: { select: { publicaciones: true } } },
+      });
       // Puede haberse descalendarizado/borrado entre el snapshot de arriba y acá.
-      if (!idea || idea.publicacionId || idea.estado !== EstadoIdea.enDrive) continue;
+      if (!idea || idea._count.publicaciones > 0 || idea.estado !== EstadoIdea.enDrive) continue;
       await promoverIdea(idea);
     }
 

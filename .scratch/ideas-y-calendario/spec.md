@@ -23,10 +23,12 @@ Un notebook de Ideas por Cuenta, con estado idea → guionada → grabada → en
 9. Como Bautista, quiero que una idea en Drive y calendarizada se publique sola a la hora indicada, sin tener que estar yo con el navegador abierto en ese momento.
 10. Como Bautista, quiero ver el listado de ideas filtrado por Cuenta y por estado, igual que ya puedo filtrar el historial de Publicaciones.
 11. Como Bautista, quiero ver un calendario mensual con las ideas programadas de cada día, para planificar de un vistazo.
+12. Como Bautista, quiero poder marcar "en Drive" pegando el link de una carpeta entera (no sólo un archivo), para armar un Post-carousel o subir varias Historias seguidas sin tener que ir archivo por archivo.
+13. Como Bautista, quiero poder elegir el orden de los archivos de esa carpeta dentro del panel, para no depender del orden en que Drive los lista.
 
 ## Implementation Decisions
 
-- Ver ADR-0013 (Idea es la fila durable, la Publicación real se crea recién al promocionar), ADR-0014 (acceso a Drive del lado del servidor, OAuth offline + refresh token cifrado) y ADR-0015 (preparar lazy para Publicaciones de Ideas, carve-out puntual sobre ADR-0009).
+- Ver ADR-0013 (Idea es la fila durable, la Publicación real se crea recién al promocionar), ADR-0014 (acceso a Drive del lado del servidor, OAuth offline + refresh token cifrado), ADR-0015 (preparar lazy para Publicaciones de Ideas, carve-out puntual sobre ADR-0009) y ADR-0016 (carpetas de Drive para carousel/multi-Historia, orden elegido en el panel, Idea↔Publicación pasa de 1:1 a 1:N).
 - Reuso explícito del motor existente: una vez promocionada, la Publicación la controla el mismo Publicador/Cola/Scheduler de siempre, sin cambios en `decidirVencidas`/`decidirSiguiente`/`publicarDesdeStorage`.
 - Acceso scoped por Cuenta con el mismo mecanismo de Colaboradores ya existente (`asegurarAccesoACuenta`/`obtenerCuentaIdPermitida`).
 - Sin librería de calendario nueva — grilla mensual armada a mano (`lib/calendario/mes-en-grilla.ts`), coherente con que el resto del panel no usa ningún kit de componentes.
@@ -38,12 +40,13 @@ Un notebook de Ideas por Cuenta, con estado idea → guionada → grabada → en
 
 ## Out of Scope
 
-- Carousels desde una Idea (una Idea = un archivo). Si hace falta más adelante, es una extensión sobre el mismo modelo, no un rediseño.
 - Notificaciones más allá del badge "atrasada" en la UI (no hay SMTP en `shared-infra`, mismo motivo que el spec original).
 - Reordenar/arrastrar en el calendario — para mover una fecha se edita la Idea.
+- Drag-and-drop para reordenar los archivos de una carpeta — botones subir/bajar alcanzan (ver ADR-0016).
+- Shortcuts de Drive dentro de una carpeta (se listan pero se filtran, no se resuelven al archivo real) y sub-carpetas anidadas (sólo primer nivel).
 
 ## Further Notes
 
-- Ver ADR-0013/0014/0015, y ADR-0001 a 0012 para el resto de las decisiones del motor de publicación existente.
+- Ver ADR-0013/0014/0015/0016, y ADR-0001 a 0012 para el resto de las decisiones del motor de publicación existente.
 - `CONTEXT.md` necesita una entrada de glosario para "Idea" y "promocionar" una vez implementado.
 - El paso de conseguir `GOOGLE_CLIENT_SECRET` en Google Cloud Console y hacer el consentimiento offline en `/configuracion` es manual, sólo lo puede hacer Bautista — bloquea probar el flujo real de principio a fin (issue 07).

@@ -7,13 +7,13 @@ import { esAtrasada } from "@/lib/ideas/es-atrasada";
 
 type IdeaConRelaciones = Idea & {
   cuenta: Cuenta;
-  publicacion: { estado: EstadoPublicacion; programadaPara: Date | null } | null;
+  publicaciones: { estado: EstadoPublicacion; programadaPara: Date | null }[];
 };
 
 /** Fila colapsable del notebook: título + badge + Cuenta; expandida muestra descripción/guión/links. */
 export function IdeaFilaExpandible({ idea, ahora }: { idea: IdeaConRelaciones; ahora: Date }) {
   const [abierta, setAbierta] = useState(false);
-  const atrasada = esAtrasada(ahora, idea);
+  const atrasada = esAtrasada(ahora, { ...idea, yaPromocionada: idea.publicaciones.length > 0 });
 
   return (
     <li className="rounded-2xl border border-zinc-200 bg-white p-4 text-sm shadow-sm">

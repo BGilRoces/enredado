@@ -10,7 +10,8 @@ function idea(overrides: Partial<IdeaPromovible> = {}): IdeaPromovible {
     estado: EstadoIdea.enDrive,
     programadaPara: new Date("2026-09-17T11:00:00Z"),
     driveFileId: "drive-1",
-    publicacionId: null,
+    tieneArchivos: false,
+    yaPromocionada: false,
     ...overrides,
   };
 }
@@ -18,6 +19,12 @@ function idea(overrides: Partial<IdeaPromovible> = {}): IdeaPromovible {
 describe("decidirIdeasParaPromover", () => {
   it("enDrive, con archivo y hora cumplida: elegible", () => {
     expect(decidirIdeasParaPromover(AHORA, [idea()])).toEqual(["idea-1"]);
+  });
+
+  it("enDrive con carpeta (tieneArchivos) en vez de driveFileId: también elegible", () => {
+    expect(
+      decidirIdeasParaPromover(AHORA, [idea({ driveFileId: null, tieneArchivos: true })])
+    ).toEqual(["idea-1"]);
   });
 
   it("no enDrive (ej. grabada) aunque tenga fecha pasada: no elegible", () => {
@@ -34,12 +41,12 @@ describe("decidirIdeasParaPromover", () => {
     ).toEqual([]);
   });
 
-  it("enDrive sin driveFileId resuelto (bug/estado inconsistente): no elegible", () => {
-    expect(decidirIdeasParaPromover(AHORA, [idea({ driveFileId: null })])).toEqual([]);
+  it("enDrive sin driveFileId resuelto ni archivos (bug/estado inconsistente): no elegible", () => {
+    expect(decidirIdeasParaPromover(AHORA, [idea({ driveFileId: null, tieneArchivos: false })])).toEqual([]);
   });
 
-  it("ya promocionada (publicacionId seteado): no se promueve de nuevo", () => {
-    expect(decidirIdeasParaPromover(AHORA, [idea({ publicacionId: "pub-1" })])).toEqual([]);
+  it("ya promocionada: no se promueve de nuevo", () => {
+    expect(decidirIdeasParaPromover(AHORA, [idea({ yaPromocionada: true })])).toEqual([]);
   });
 
   it("lista vacía no rompe", () => {

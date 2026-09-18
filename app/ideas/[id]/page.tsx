@@ -1,10 +1,11 @@
 import { notFound, redirect } from "next/navigation";
-import { EstadoIdea } from "@prisma/client";
+import { EstadoIdea, TipoPublicacion } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { asegurarAccesoACuenta } from "@/lib/auth/cuenta-permitida";
 import { esAtrasada } from "@/lib/ideas/es-atrasada";
 import { mensajeDeError } from "@/lib/mensaje-de-error";
 import { claseBadgeEstadoIdea, etiquetaEstadoIdea } from "@/components/etiqueta-estado-idea";
+import { claseBadgeEstado, etiquetaEstado } from "@/components/etiqueta-estado";
 import { AppShell } from "@/components/app-shell";
 import {
   actualizarIdea,
@@ -13,6 +14,7 @@ import {
   descalendarizarIdea,
   eliminarIdea,
   marcarEnDrive,
+  moverArchivoIdea,
 } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -65,13 +67,17 @@ export default async function IdeaPage({
 
   const idea = await prisma.idea.findUnique({
     where: { id },
-    include: { cuenta: true, publicacion: true },
+    include: {
+      cuenta: true,
+      publicaciones: { orderBy: { creadaEn: "asc" } },
+      archivos: { orderBy: { orden: "asc" } },
+    },
   });
   if (!idea) notFound();
   await asegurarAccesoACuenta(idea.cuentaId);
 
-  const promocionada = idea.publicacionId !== null;
-  const atrasada = esAtrasada(new Date(), idea);
+  const promocionada = idea.publicaciones.length > 0;
+  const atrasada = esAtrasada(new Date(), { ...idea, yaPromocionada: promocionada });
 
   async function guardar(formData: FormData) {
     "use server";
@@ -135,10 +141,26 @@ export default async function IdeaPage({
       )}
 
       {promocionada && (
-        <p className="rounded-lg bg-sky-50 p-3 text-sm text-sky-700">
-          Ya se promocionó a una Publicación real — el título/guión/links siguen editables como notas, pero el
-          tipo y el archivo ya no se pueden cambiar acá.
-        </p>
+        <div className="flex flex-col gap-2 rounded-lg bg-sky-50 p-3 text-sm text-sky-700">
+          <p>
+            Ya se promocionó a {idea.publicaciones.length === 1 ? "una Publicación real" : `${idea.publicaciones.length} Publicaciones reales`}{" "}
+            — el título/guión/links siguen editables como notas, pero el tipo y el/los archivo(s) ya no se pueden
+            cambiar acá.
+          </p>
+          {idea.publicaciones.length > 1 && (
+            <ul className="flex flex-col gap-1">
+              {idea.publicaciones.map((publicacion, i) => (
+                <li key={publicacion.id} className="flex items-center gap-2">
+                  <span className="text-xs text-sky-600">#{i + 1}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${claseBadgeEstado(publicacion)}`}>
+                    {etiquetaEstado(publicacion)}
+                  </span>
+                  {publicacion.error && <span className="text-xs text-rose-700">{publicacion.error}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
 
       {!promocionada && (
@@ -171,14 +193,17 @@ export default async function IdeaPage({
           <form action={guardarDrive} className="mt-2 flex flex-col gap-2">
             <label className="text-sm font-medium text-zinc-700">Link de Drive (marca &quot;en Drive&quot;)</label>
             <p className="text-xs text-zinc-500">
-              El link del archivo puntual (botón derecho sobre el video/foto → &quot;Compartir&quot; → &quot;Copiar
-              enlace&quot;), no el de la carpeta.
+              {idea.tipo === TipoPublicacion.reel
+                ? "Un Reel es un solo video: pegá el link del archivo puntual (\"Compartir\" → \"Copiar enlace\"), no el de una carpeta."
+                : idea.tipo === TipoPublicacion.post
+                  ? "El link de un archivo puntual, o el de una carpeta entera para armar un carousel (hasta 10 elementos, orden elegible abajo)."
+                  : "El link de un archivo puntual, o el de una carpeta entera para subir varias Historias seguidas (orden elegible abajo)."}
             </p>
             <div className="flex gap-2">
               <input
                 name="driveLink"
                 defaultValue={idea.driveLink ?? ""}
-                placeholder="https://drive.google.com/file/d/..."
+                placeholder="https://drive.google.com/file/d/... o /drive/folders/..."
                 className={`${INPUT_CLASS} flex-1`}
               />
               <button
@@ -189,6 +214,56 @@ export default async function IdeaPage({
               </button>
             </div>
           </form>
+
+          {idea.archivos.length > 0 && (
+            <div className="mt-2 flex flex-col gap-1">
+              <p className="text-sm font-medium text-zinc-700">
+                Orden de la carpeta ({idea.archivos.length} archivo{idea.archivos.length === 1 ? "" : "s"})
+              </p>
+              <ul className="flex flex-col gap-1">
+                {idea.archivos.map((archivo, i) => (
+                  <li
+                    key={archivo.id}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-zinc-200 p-2 text-xs"
+                  >
+                    <span className="truncate text-zinc-700">
+                      {i + 1}. {archivo.nombre ?? archivo.driveFileId}
+                    </span>
+                    <span className="flex shrink-0 gap-1">
+                      <form
+                        action={async () => {
+                          "use server";
+                          await conManejoDeError(id, () => moverArchivoIdea(id, archivo.id, "arriba"));
+                        }}
+                      >
+                        <button
+                          type="submit"
+                          disabled={i === 0}
+                          className="rounded border border-zinc-300 px-1.5 py-0.5 disabled:opacity-30"
+                        >
+                          ↑
+                        </button>
+                      </form>
+                      <form
+                        action={async () => {
+                          "use server";
+                          await conManejoDeError(id, () => moverArchivoIdea(id, archivo.id, "abajo"));
+                        }}
+                      >
+                        <button
+                          type="submit"
+                          disabled={i === idea.archivos.length - 1}
+                          className="rounded border border-zinc-300 px-1.5 py-0.5 disabled:opacity-30"
+                        >
+                          ↓
+                        </button>
+                      </form>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 

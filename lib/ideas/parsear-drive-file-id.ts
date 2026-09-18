@@ -4,19 +4,20 @@ export interface DriveLinkParseado {
 }
 
 const PATRON_PATH = /\/file\/d\/([^/]+)/;
-const PATRON_CARPETA = /\/drive\/folders\//;
+const PATRON_CARPETA = /\/drive\/folders\/([^/?]+)/;
 
 /**
- * Un link de carpeta (`.../drive/folders/<id>`) es un error de uso muy común
- * acá — el usuario comparte la carpeta donde subió todo en vez del archivo
- * puntual — y merece un mensaje más específico que "no lo reconozco" (ver
- * app/ideas/actions.ts).
+ * Extrae el id de una carpeta (`.../drive/folders/<id>`) — un Post o una
+ * Historia pueden calendarizarse desde una carpeta entera (ver ADR-0016,
+ * lib/drive/listar-carpeta.ts), a diferencia de un Reel, que siempre es un
+ * solo archivo.
  */
-export function esLinkDeCarpeta(link: string): boolean {
+export function parsearDriveFolderId(link: string): string | null {
   try {
-    return PATRON_CARPETA.test(new URL(link.trim()).pathname);
+    const match = new URL(link.trim()).pathname.match(PATRON_CARPETA);
+    return match ? match[1] : null;
   } catch {
-    return false;
+    return null;
   }
 }
 

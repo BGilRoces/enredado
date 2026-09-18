@@ -6,7 +6,7 @@ const AHORA = new Date("2026-09-17T12:00:00Z");
 
 describe("esAtrasada", () => {
   it("sin programadaPara: nunca atrasada", () => {
-    expect(esAtrasada(AHORA, { estado: EstadoIdea.idea, programadaPara: null, publicacionId: null })).toBe(
+    expect(esAtrasada(AHORA, { estado: EstadoIdea.idea, programadaPara: null, yaPromocionada: false })).toBe(
       false
     );
   });
@@ -16,7 +16,7 @@ describe("esAtrasada", () => {
       esAtrasada(AHORA, {
         estado: EstadoIdea.grabada,
         programadaPara: new Date("2026-09-17T11:00:00Z"),
-        publicacionId: null,
+        yaPromocionada: false,
       })
     ).toBe(true);
   });
@@ -26,7 +26,7 @@ describe("esAtrasada", () => {
       esAtrasada(AHORA, {
         estado: EstadoIdea.enDrive,
         programadaPara: new Date("2026-09-17T11:00:00Z"),
-        publicacionId: null,
+        yaPromocionada: false,
       })
     ).toBe(false);
   });
@@ -36,17 +36,17 @@ describe("esAtrasada", () => {
       esAtrasada(AHORA, {
         estado: EstadoIdea.grabada,
         programadaPara: new Date("2026-09-17T13:00:00Z"),
-        publicacionId: null,
+        yaPromocionada: false,
       })
     ).toBe(false);
   });
 
-  it("ya promocionada (publicacionId seteado): no atrasada, aunque el estado siga sin enDrive", () => {
+  it("ya promocionada: no atrasada, aunque el estado siga sin enDrive", () => {
     expect(
       esAtrasada(AHORA, {
         estado: EstadoIdea.grabada,
         programadaPara: new Date("2026-09-17T11:00:00Z"),
-        publicacionId: "pub-1",
+        yaPromocionada: true,
       })
     ).toBe(false);
   });

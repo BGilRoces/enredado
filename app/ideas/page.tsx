@@ -40,7 +40,7 @@ export default async function IdeasPage({
       ...(estadoFiltro ? { estado: estadoFiltro } : {}),
     },
     orderBy: { creadaEn: "desc" },
-    include: { cuenta: true, publicacion: { select: { estado: true, programadaPara: true } } },
+    include: { cuenta: true, publicaciones: { select: { estado: true, programadaPara: true } } },
   });
 
   const ahora = new Date();

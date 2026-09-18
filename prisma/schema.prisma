@@ -67,6 +67,9 @@ model Publicacion {
   // Nulo cuando la Publicación es un carousel (ver `archivos` abajo, y
   // ADR-0011): un carousel no tiene "el" archivo, tiene varios.
   driveFileId   String?
+  // Drive lo exige para archivos compartidos por link (ver lib/drive/client.ts).
+  // Sólo se usa en el paso "preparar" (ADR-0009/0015), nunca se re-lee después.
+  driveResourceKey String?
   caption       String?
   // Nulo = publicar apenas la cola la procese. Con valor = Publicación
   // programada, el scheduler la deja lista para la cola recién al llegar la hora.
@@ -92,25 +95,32 @@ model Publicacion {
   // Presente sólo si esta Publicación nació de una Idea promocionada (ver
   // ADR-0013) — null en toda fila creada por /publicar. Es la señal que usa
   // el worker para decidir si tiene que preparar el archivo de forma lazy
-  // (ADR-0015) en vez de esperar que ya venga preparado.
-  idea          Idea?
+  // (ADR-0015) en vez de esperar que ya venga preparado. No es único: una
+  // Idea con una carpeta de Historias promociona a varias Publicaciones
+  // independientes, una por archivo (ver ADR-0016).
+  ideaId        String?
+  idea          Idea?             @relation(fields: [ideaId], references: [id], onDelete: SetNull)
 }
 
 /**
  * Un elemento de un carousel (ver ADR-0011). Sólo existe para Publicaciones
  * de tipo Post con más de un archivo elegido — el caso simple (Historia,
  * Reel, Post de un solo archivo) sigue usando los campos de `Publicacion`
- * directamente, sin filas acá.
+ * directamente, sin filas acá. `tipoMedia`/`storageUrl` nulos mientras el
+ * archivo no fue preparado todavía — sólo pasa en el camino lazy de una Idea
+ * con carpeta (ADR-0015/0016); el camino eager de /publicar los completa
+ * siempre antes de crear la fila.
  */
 model PublicacionArchivo {
-  id            String      @id @default(cuid())
-  publicacionId String
-  publicacion   Publicacion @relation(fields: [publicacionId], references: [id])
-  orden         Int
-  driveFileId   String
-  tipoMedia     TipoMedia
-  storageUrl    String
-  creadaEn      DateTime    @default(now())
+  id               String      @id @default(cuid())
+  publicacionId    String
+  publicacion      Publicacion @relation(fields: [publicacionId], references: [id])
+  orden            Int
+  driveFileId      String
+  driveResourceKey String?
+  tipoMedia        TipoMedia?
+  storageUrl       String?
+  creadaEn         DateTime    @default(now())
 }
 
 // ─── IDEAS ───────────────────────────────────────────────────────────────
@@ -152,13 +162,32 @@ model Idea {
   // Calendarizar = setear esto. Antes de `enDrive` es sólo un recordatorio,
   // nunca dispara nada (ver lib/ideas/decidir-ideas-para-promover.ts).
   programadaPara   DateTime?
-  // Se completa recién al promocionar (ver ADR-0013) — de ahí en más el
-  // estado real de publicación se lee de esta Publicación vinculada, no del
-  // `estado` de arriba.
-  publicacionId    String?         @unique
-  publicacion      Publicacion?    @relation(fields: [publicacionId], references: [id])
+  // Se completan recién al promocionar (ver ADR-0013) — de ahí en más el
+  // estado real de publicación se lee de estas Publicaciones vinculadas, no
+  // del `estado` de arriba. Puede ser más de una: una Idea con carpeta de
+  // Historias promociona a N Publicaciones independientes (ver ADR-0016) —
+  // Post con carpeta sigue siendo una sola (carousel).
+  publicaciones    Publicacion[]
+  // Presente sólo si driveLink apunta a una carpeta, no a un archivo puntual
+  // (ver ADR-0016) — vacío en el caso simple, que sigue usando driveFileId/
+  // driveResourceKey de arriba. El orden lo elige el usuario en el panel
+  // (lib/ideas/parsear-drive-file-id.ts no puede inferirlo de Drive).
+  archivos         IdeaArchivo[]
   creadaEn         DateTime        @default(now())
   actualizadaEn    DateTime        @updatedAt
+}
+
+/** Un archivo de la carpeta de Drive de una Idea (ver ADR-0016), con su orden elegido en el panel. */
+model IdeaArchivo {
+  id               String   @id @default(cuid())
+  ideaId           String
+  idea             Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  orden            Int
+  driveFileId      String
+  driveResourceKey String?
+  // Sólo para mostrar en la UI de reordenar — Drive no expone bien el id solo.
+  nombre           String?
+  creadaEn         DateTime @default(now())
 }
 
 /**

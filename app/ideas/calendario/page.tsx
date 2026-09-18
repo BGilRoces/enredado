@@ -58,7 +58,7 @@ export default async function CalendarioPage({
       programadaPara: { gte: desde, lt: hasta },
       ...(cuentaId ? { cuentaId } : {}),
     },
-    include: { cuenta: true, publicacion: { select: { estado: true, programadaPara: true } } },
+    include: { cuenta: true, publicaciones: { select: { estado: true, programadaPara: true } } },
   });
 
   const ideasPorDia = new Map<string, IdeaEnCalendario[]>();
@@ -71,7 +71,7 @@ export default async function CalendarioPage({
       cuentaNombre: idea.cuenta.nombre,
       estado: idea.estado,
       programadaPara: idea.programadaPara,
-      publicacion: idea.publicacion,
+      publicaciones: idea.publicaciones,
     });
     ideasPorDia.set(clave, lista);
   }

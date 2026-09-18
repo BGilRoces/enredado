@@ -16,6 +16,22 @@ const FORMATOS_IMAGEN_CONVERTIBLES = new Set(["image/png", "image/webp", "image/
 /** Contenedores de video que acepta la Graph API. */
 const FORMATOS_VIDEO_SOPORTADOS = new Set(["video/mp4", "video/quicktime"]);
 
+const TODOS_LOS_FORMATOS_SOPORTADOS = new Set([
+  ...FORMATOS_IMAGEN_SOPORTADOS,
+  ...FORMATOS_IMAGEN_CONVERTIBLES,
+  ...FORMATOS_VIDEO_SOPORTADOS,
+]);
+
+/**
+ * Formatos que este panel sabe manejar (convertir o no), sin considerar el
+ * `tipoPublicacion` (esa regla más fina es `detectarTipoMedia`, de abajo).
+ * Usado para filtrar el listado de una carpeta de Drive (ver ADR-0016,
+ * lib/drive/listar-carpeta.ts) antes de mostrarla para elegir orden.
+ */
+export function esFormatoMediaSoportado(mimeType: string): boolean {
+  return TODOS_LOS_FORMATOS_SOPORTADOS.has(mimeType);
+}
+
 /**
  * Instagram sólo acepta JPEG para fotos — en vez de rechazar directo lo que
  * el usuario eligió de Drive en otro formato de imagen, se convierte acá

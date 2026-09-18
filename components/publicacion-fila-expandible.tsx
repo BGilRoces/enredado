@@ -22,10 +22,14 @@ export function PublicacionFilaExpandible({
   const [abierta, setAbierta] = useState(false);
 
   // Un carousel trae sus archivos en `archivos` (ver ADR-0011); el caso
-  // simple usa los campos sueltos de la Publicación.
+  // simple usa los campos sueltos de la Publicación. `tipoMedia`/`storageUrl`
+  // pueden seguir en null si todavía no se preparó (camino lazy de una Idea
+  // con carpeta, ver ADR-0015/0016) — sin preview hasta entonces.
   const archivos: ArchivoPreview[] =
     publicacion.archivos.length > 0
-      ? publicacion.archivos.map((a) => ({ tipoMedia: a.tipoMedia, storageUrl: a.storageUrl }))
+      ? publicacion.archivos
+          .filter((a): a is typeof a & ArchivoPreview => a.tipoMedia !== null && a.storageUrl !== null)
+          .map((a) => ({ tipoMedia: a.tipoMedia, storageUrl: a.storageUrl }))
       : publicacion.storageUrl && publicacion.tipoMedia
         ? [{ tipoMedia: publicacion.tipoMedia, storageUrl: publicacion.storageUrl }]
         : [];

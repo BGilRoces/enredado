@@ -3,10 +3,11 @@ import { describe, expect, it } from "vitest";
 import { prepararSiHaceFalta } from "./preparar-si-hace-falta";
 import type { DriveClient, StorageClient } from "./types";
 
-const PUBLICACION = {
-  id: "pub-1",
+const PUBLICACION_SIMPLE = {
   tipo: TipoPublicacion.post,
-  idea: { driveFileId: "drive-1", driveResourceKey: null },
+  driveFileId: "drive-1",
+  driveResourceKey: null,
+  archivos: [],
 };
 
 function fakeDrive(llamadas: string[] = []): DriveClient {
@@ -30,10 +31,10 @@ function fakeStorage(llamadas: string[] = []): StorageClient {
   };
 }
 
-describe("prepararSiHaceFalta", () => {
-  it("mintea el token de Drive y prepara el archivo de la Idea", async () => {
+describe("prepararSiHaceFalta — caso simple", () => {
+  it("mintea el token de Drive y prepara el archivo", async () => {
     const llamadas: string[] = [];
-    const resultado = await prepararSiHaceFalta(PUBLICACION, {
+    const resultado = await prepararSiHaceFalta(PUBLICACION_SIMPLE, {
       mintDriveAccessToken: async () => "token-fresco",
       drive: fakeDrive(llamadas),
       storage: fakeStorage(llamadas),
@@ -52,7 +53,7 @@ describe("prepararSiHaceFalta", () => {
 
   it("si mintear el token falla (Drive no conectado o revocado), no llama a Drive ni a Storage", async () => {
     const llamadas: string[] = [];
-    const resultado = await prepararSiHaceFalta(PUBLICACION, {
+    const resultado = await prepararSiHaceFalta(PUBLICACION_SIMPLE, {
       mintDriveAccessToken: async () => {
         throw new Error("Drive no está conectado — andá a Configuración.");
       },
@@ -64,14 +65,46 @@ describe("prepararSiHaceFalta", () => {
     expect(llamadas).toEqual([]);
   });
 
-  it("si la Publicación no tiene idea.driveFileId, falla sin llamar a nada (bug interno, nunca debería pasar)", async () => {
+  it("sin driveFileId ni archivos (bug interno, nunca debería pasar): falla sin llamar a nada", async () => {
     const llamadas: string[] = [];
     const resultado = await prepararSiHaceFalta(
-      { ...PUBLICACION, idea: { driveFileId: null, driveResourceKey: null } },
+      { ...PUBLICACION_SIMPLE, driveFileId: null },
       { mintDriveAccessToken: async () => "token", drive: fakeDrive(llamadas), storage: fakeStorage(llamadas) }
     );
 
     expect(resultado.ok).toBe(false);
     expect(llamadas).toEqual([]);
+  });
+});
+
+describe("prepararSiHaceFalta — carousel (ADR-0016)", () => {
+  it("prepara todos los archivos, en el orden dado", async () => {
+    const llamadas: string[] = [];
+    const resultado = await prepararSiHaceFalta(
+      {
+        tipo: TipoPublicacion.post,
+        driveFileId: null,
+        driveResourceKey: null,
+        archivos: [
+          { id: "pa-1", driveFileId: "drive-1", driveResourceKey: null },
+          { id: "pa-2", driveFileId: "drive-2", driveResourceKey: "rk-2" },
+        ],
+      },
+      { mintDriveAccessToken: async () => "token-fresco", drive: fakeDrive(llamadas), storage: fakeStorage(llamadas) }
+    );
+
+    expect(resultado).toEqual({
+      ok: true,
+      archivos: [
+        { driveFileId: "drive-1", tipoMedia: "imagen", storageUrl: "https://storage.example/drive-1" },
+        { driveFileId: "drive-2", tipoMedia: "imagen", storageUrl: "https://storage.example/drive-2" },
+      ],
+    });
+    expect(llamadas).toEqual([
+      "drive.descargarArchivo(drive-1, token-fresco)",
+      "storage.subir(drive-1, image/jpeg)",
+      "drive.descargarArchivo(drive-2, token-fresco)",
+      "storage.subir(drive-2, image/jpeg)",
+    ]);
   });
 });

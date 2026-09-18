@@ -67,13 +67,15 @@ async function procesarUna(id: string): Promise<void> {
     return;
   }
   // Un carousel (ver ADR-0011) trae sus archivos en `archivos`, no en los
-  // campos sueltos de la fila padre — sólo el caso simple los necesita acá.
+  // campos sueltos de la fila padre.
   const esCarousel = publicacion.archivos.length > 0;
-  const faltaArchivo = !esCarousel && (!publicacion.storageUrl || !publicacion.tipoMedia);
-  if (faltaArchivo && publicacion.idea) {
-    // Ver ADR-0015: esta Publicación nació de una Idea promocionada — a
-    // diferencia del camino de /publicar (ADR-0009, ya preparado al crear),
-    // acá se prepara recién ahora, con el token de Drive del servidor.
+  const faltaSimple = !esCarousel && (!publicacion.storageUrl || !publicacion.tipoMedia);
+  const faltaCarousel = esCarousel && publicacion.archivos.some((a) => !a.storageUrl || !a.tipoMedia);
+
+  if ((faltaSimple || faltaCarousel) && publicacion.idea) {
+    // Ver ADR-0015/0016: esta Publicación nació de una Idea promocionada — a
+    // diferencia del camino de /publicar (ADR-0009/0011, ya preparado al
+    // crear), acá se prepara recién ahora, con el token de Drive del servidor.
     const preparado = await prepararSiHaceFalta(publicacion, {
       mintDriveAccessToken,
       drive: driveClient,
@@ -86,12 +88,31 @@ async function procesarUna(id: string): Promise<void> {
       });
       return;
     }
-    publicacion = await prisma.publicacion.update({
+
+    if ("archivos" in preparado) {
+      // `preparado.archivos` viene en el mismo orden que se lo pasamos
+      // (publicacion.archivos, ya ordenado por `orden` — ver preparar-si-hace-falta.ts).
+      const resueltos = preparado.archivos;
+      await prisma.$transaction(
+        publicacion.archivos.map((a, i) =>
+          prisma.publicacionArchivo.update({
+            where: { id: a.id },
+            data: { tipoMedia: resueltos[i].tipoMedia, storageUrl: resueltos[i].storageUrl },
+          })
+        )
+      );
+    } else {
+      await prisma.publicacion.update({
+        where: { id: publicacion.id },
+        data: { storageUrl: preparado.storageUrl, tipoMedia: preparado.tipoMedia },
+      });
+    }
+
+    publicacion = await prisma.publicacion.findUniqueOrThrow({
       where: { id: publicacion.id },
-      data: { storageUrl: preparado.storageUrl, tipoMedia: preparado.tipoMedia },
       include: { cuenta: true, archivos: { orderBy: { orden: "asc" } }, idea: true },
     });
-  } else if (faltaArchivo) {
+  } else if (faltaSimple || faltaCarousel) {
     await prisma.publicacion.update({
       where: { id: publicacion.id },
       data: { estado: EstadoPublicacion.fallida, error: "Falta el archivo preparado (bug interno)." },
@@ -128,8 +149,8 @@ async function publicarUna(
           modo: "carousel",
           archivos: publicacion.archivos.map((a) => ({
             driveFileId: a.driveFileId,
-            tipoMedia: a.tipoMedia,
-            storageUrl: a.storageUrl,
+            tipoMedia: a.tipoMedia!,
+            storageUrl: a.storageUrl!,
           })),
           caption: publicacion.caption ?? undefined,
           cuenta,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { esLinkDeCarpeta, parsearDriveLink } from "./parsear-drive-file-id";
+import { parsearDriveFolderId, parsearDriveLink } from "./parsear-drive-file-id";
 
 describe("parsearDriveLink", () => {
   it("link de compartir estándar (/file/d/<id>/view)", () => {
@@ -31,20 +31,24 @@ describe("parsearDriveLink", () => {
   });
 });
 
-describe("esLinkDeCarpeta", () => {
-  it("detecta un link de carpeta con usp=sharing", () => {
-    expect(esLinkDeCarpeta("https://drive.google.com/drive/folders/abc123?usp=sharing")).toBe(true);
+describe("parsearDriveFolderId", () => {
+  it("extrae el id de una carpeta, ignorando la query", () => {
+    expect(parsearDriveFolderId("https://drive.google.com/drive/folders/abc123?usp=sharing")).toBe(
+      "abc123"
+    );
   });
 
-  it("detecta un link de carpeta con usp=drive_link", () => {
-    expect(esLinkDeCarpeta("https://drive.google.com/drive/folders/abc123?usp=drive_link")).toBe(true);
+  it("extrae el id de una carpeta con usp=drive_link", () => {
+    expect(parsearDriveFolderId("https://drive.google.com/drive/folders/abc123?usp=drive_link")).toBe(
+      "abc123"
+    );
   });
 
-  it("un link de archivo no es una carpeta", () => {
-    expect(esLinkDeCarpeta("https://drive.google.com/file/d/abc123/view")).toBe(false);
+  it("un link de archivo no es una carpeta: null", () => {
+    expect(parsearDriveFolderId("https://drive.google.com/file/d/abc123/view")).toBeNull();
   });
 
-  it("no es una URL válida: false", () => {
-    expect(esLinkDeCarpeta("no es un link")).toBe(false);
+  it("no es una URL válida: null", () => {
+    expect(parsearDriveFolderId("no es un link")).toBeNull();
   });
 });

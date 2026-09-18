@@ -8,9 +8,7 @@ import { prepararArchivo, prepararArchivos } from "@/lib/publicador/preparar-arc
 import { driveClient } from "@/lib/drive/client";
 import { storageClient } from "@/lib/storage/client";
 import { tick } from "@/lib/worker/publicador-worker";
-
-/** Límite fijo de Instagram: un carousel admite entre 2 y 10 elementos. */
-const MAX_ARCHIVOS_CAROUSEL = 10;
+import { MAX_ARCHIVOS_CAROUSEL } from "@/lib/publicador/limites";
 
 export interface CrearPublicacionInput {
   cuentaId: string;
