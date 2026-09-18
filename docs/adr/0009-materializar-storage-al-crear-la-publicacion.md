@@ -1,5 +1,7 @@
 # Bajar de Drive y subir a Storage al crear la Publicación, no al publicarla
 
+> Esta regla sigue aplicando tal cual para `/publicar` (Picker interactivo). Para Publicaciones que nacen de una Idea promocionada, ver el carve-out puntual de [ADR-0015](0015-preparar-lazy-para-publicaciones-de-ideas.md).
+
 El token de Google que autoriza la descarga del archivo de Drive (el que entrega el Picker, scope `drive.file`) dura ~1 hora. Hasta el ticket 04, el Publicador bajaba de Drive y publicaba en el mismo paso, siempre de inmediato — ese token nunca llegaba a expirar.
 
 El ticket 05 agrega Publicaciones programadas para un momento futuro (horas o días después). Si el Publicador siguiera bajando de Drive recién al momento de publicar, cualquier Publicación programada para más de ~1 hora después fallaría siempre: el token de Drive guardado en la Publicación ya habría vencido, y sin pedirle a Bautista que vuelva a autorizar Drive no hay forma de renovarlo solo.

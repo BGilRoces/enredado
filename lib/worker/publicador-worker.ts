@@ -11,9 +11,12 @@ import { decidirVencidas } from "@/lib/scheduler/decidir-vencidas";
 import { decidirSiguiente } from "@/lib/cola/decidir-siguiente";
 import { excedioLimiteDiario, LIMITE_PUBLICACIONES_POR_VENTANA } from "@/lib/limite-diario/excedio-limite-diario";
 import { publicarDesdeStorage } from "@/lib/publicador/publicar-desde-storage";
+import { prepararSiHaceFalta } from "@/lib/publicador/preparar-si-hace-falta";
 import { esperarMs } from "@/lib/publicador/esperar";
 import { storageClient } from "@/lib/storage/client";
 import { metaPublishClient } from "@/lib/meta/client";
+import { driveClient } from "@/lib/drive/client";
+import { mintDriveAccessToken } from "@/lib/drive-oauth/mint-access-token";
 
 /** ADR-0004: no hace falta más frecuencia — el "ahora" no espera al intervalo, ver tick() abajo. */
 const TICK_INTERVAL_MS = 2 * 60 * 1000;
@@ -51,9 +54,9 @@ async function procesarUna(id: string): Promise<void> {
   });
   if (count === 0) return;
 
-  const publicacion = await prisma.publicacion.findUniqueOrThrow({
+  let publicacion = await prisma.publicacion.findUniqueOrThrow({
     where: { id },
-    include: { cuenta: true, archivos: { orderBy: { orden: "asc" } } },
+    include: { cuenta: true, archivos: { orderBy: { orden: "asc" } }, idea: true },
   });
 
   if (!publicacion.cuenta.accessTokenEncriptado || publicacion.cuenta.estado !== EstadoCuenta.conectada) {
@@ -66,7 +69,29 @@ async function procesarUna(id: string): Promise<void> {
   // Un carousel (ver ADR-0011) trae sus archivos en `archivos`, no en los
   // campos sueltos de la fila padre — sólo el caso simple los necesita acá.
   const esCarousel = publicacion.archivos.length > 0;
-  if (!esCarousel && (!publicacion.storageUrl || !publicacion.tipoMedia)) {
+  const faltaArchivo = !esCarousel && (!publicacion.storageUrl || !publicacion.tipoMedia);
+  if (faltaArchivo && publicacion.idea) {
+    // Ver ADR-0015: esta Publicación nació de una Idea promocionada — a
+    // diferencia del camino de /publicar (ADR-0009, ya preparado al crear),
+    // acá se prepara recién ahora, con el token de Drive del servidor.
+    const preparado = await prepararSiHaceFalta(publicacion, {
+      mintDriveAccessToken,
+      drive: driveClient,
+      storage: storageClient,
+    });
+    if (!preparado.ok) {
+      await prisma.publicacion.update({
+        where: { id: publicacion.id },
+        data: { estado: EstadoPublicacion.fallida, error: preparado.error },
+      });
+      return;
+    }
+    publicacion = await prisma.publicacion.update({
+      where: { id: publicacion.id },
+      data: { storageUrl: preparado.storageUrl, tipoMedia: preparado.tipoMedia },
+      include: { cuenta: true, archivos: { orderBy: { orden: "asc" } }, idea: true },
+    });
+  } else if (faltaArchivo) {
     await prisma.publicacion.update({
       where: { id: publicacion.id },
       data: { estado: EstadoPublicacion.fallida, error: "Falta el archivo preparado (bug interno)." },

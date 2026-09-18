@@ -64,12 +64,17 @@ export default async function CuentasPage({
           Cuentas de Instagram
         </h1>
         {!cuentaIdPermitida && (
-          <a
-            href="/api/meta/connect"
-            className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800"
-          >
-            Conectar cuenta
-          </a>
+          <div className="flex items-center gap-3">
+            <a href="/configuracion" className="text-sm font-medium text-indigo-600 hover:text-indigo-700">
+              Configuración
+            </a>
+            <a
+              href="/api/meta/connect"
+              className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800"
+            >
+              Conectar cuenta
+            </a>
+          </div>
         )}
       </div>
 

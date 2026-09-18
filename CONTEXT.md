@@ -39,3 +39,11 @@ _Avoid_: activa/inactiva, habilitada/deshabilitada.
 **Colaborador**:
 Una persona invitada a usar el panel con acceso restringido a un subconjunto de las Cuentas de Instagram (nunca a todas por defecto).
 _Avoid_: usuario, invitado, admin.
+
+**Idea**:
+Una nota de contenido de una Cuenta de Instagram, antes de que exista el archivo a publicar: título, mini-descripción, guión, hasta 2 links de referencia, y un estado (idea, guionada, grabada, enDrive). Es la fila durable de todo su ciclo de vida — calendarizarla no la duplica en otro registro (ver "Promocionar" y ADR-0013).
+_Avoid_: borrador, draft, nota.
+
+**Promocionar** (una Idea):
+Convertir una Idea ya elegible (enDrive, con el link de Drive resuelto, y su fecha/hora ya cumplida) en una Publicación real, que a partir de ahí sigue el mismo camino que cualquier Publicación creada desde /publicar. Lo hace solo el worker de Ideas, nunca una acción manual (ver ADR-0013).
+_Avoid_: convertir, disparar, activar.

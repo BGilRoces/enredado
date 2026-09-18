@@ -32,6 +32,7 @@ model Cuenta {
   creadaEn               DateTime      @default(now())
   actualizadaEn          DateTime      @updatedAt
   publicaciones          Publicacion[]
+  ideas                  Idea[]
 }
 
 // ─── PUBLICACIONES ──────────────────────────────────────────────────────────
@@ -88,6 +89,11 @@ model Publicacion {
   // Presente sólo en un carousel (Post con 2-10 elementos, ver ADR-0011) —
   // vacío en el caso simple, que sigue usando los campos de arriba.
   archivos      PublicacionArchivo[]
+  // Presente sólo si esta Publicación nació de una Idea promocionada (ver
+  // ADR-0013) — null en toda fila creada por /publicar. Es la señal que usa
+  // el worker para decidir si tiene que preparar el archivo de forma lazy
+  // (ADR-0015) en vez de esperar que ya venga preparado.
+  idea          Idea?
 }
 
 /**
@@ -105,4 +111,66 @@ model PublicacionArchivo {
   tipoMedia     TipoMedia
   storageUrl    String
   creadaEn      DateTime    @default(now())
+}
+
+// ─── IDEAS ───────────────────────────────────────────────────────────────
+
+enum EstadoIdea {
+  idea
+  guionada
+  grabada
+  // El usuario pegó el link de Drive del archivo ya subido — ver ADR-0013.
+  enDrive
+}
+
+/**
+ * Notebook de ideas de contenido por Cuenta (ver ADR-0013). Es la fila
+ * durable de todo el ciclo de vida — calendarizar (setear `programadaPara`)
+ * no crea una fila aparte, y la Publicación real recién se crea cuando la
+ * Idea es elegible para salir de verdad (enDrive + link + hora cumplida,
+ * ver lib/ideas/decidir-ideas-para-promover.ts).
+ */
+model Idea {
+  id               String          @id @default(cuid())
+  cuentaId         String
+  cuenta           Cuenta          @relation(fields: [cuentaId], references: [id])
+  titulo           String
+  descripcion      String?
+  guion            String?
+  linkReferencia1  String?
+  linkReferencia2  String?
+  tipo             TipoPublicacion
+  // Texto real que sale en el post — separado de `guion` (notas de
+  // producción) y `descripcion` (resumen interno de la idea).
+  caption          String?
+  estado           EstadoIdea      @default(idea)
+  // Tal cual como lo pegó el usuario, para mostrarlo/reeditarlo.
+  driveLink        String?
+  // Parseados de driveLink (ver lib/ideas/parsear-drive-file-id.ts).
+  driveFileId      String?
+  driveResourceKey String?
+  // Calendarizar = setear esto. Antes de `enDrive` es sólo un recordatorio,
+  // nunca dispara nada (ver lib/ideas/decidir-ideas-para-promover.ts).
+  programadaPara   DateTime?
+  // Se completa recién al promocionar (ver ADR-0013) — de ahí en más el
+  // estado real de publicación se lee de esta Publicación vinculada, no del
+  // `estado` de arriba.
+  publicacionId    String?         @unique
+  publicacion      Publicacion?    @relation(fields: [publicacionId], references: [id])
+  creadaEn         DateTime        @default(now())
+  actualizadaEn    DateTime        @updatedAt
+}
+
+/**
+ * Credencial de Google Drive del propio panel (ver ADR-0014) — no es por
+ * Cuenta de Instagram, es una sola, del Drive del dueño del panel. `slot` con
+ * unique fuerza que sólo pueda existir una fila; reconectar la pisa.
+ */
+model DriveCredencial {
+  id                     String   @id @default(cuid())
+  slot                   String   @unique @default("default")
+  cuentaGoogleEmail      String
+  refreshTokenEncriptado String
+  creadaEn               DateTime @default(now())
+  actualizadaEn          DateTime @updatedAt
 }

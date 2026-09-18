@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { cerrarSesion } from "@/lib/auth/actions";
 
-type Seccion = "inicio" | "cuentas" | "publicar" | "historial";
+type Seccion = "inicio" | "cuentas" | "publicar" | "historial" | "ideas" | "configuracion";
 
 const NAV: { href: string; label: string; seccion: Seccion }[] = [
   { href: "/", label: "Inicio", seccion: "inicio" },
   { href: "/cuentas", label: "Cuentas", seccion: "cuentas" },
   { href: "/publicar", label: "Publicar", seccion: "publicar" },
+  { href: "/ideas", label: "Ideas", seccion: "ideas" },
   { href: "/historial", label: "Historial", seccion: "historial" },
 ];
 

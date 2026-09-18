@@ -1,0 +1,7 @@
+# Preparar lazy (no eager) para Publicaciones promocionadas desde una Idea
+
+ADR-0009 estableció una regla general: preparar el archivo (bajar de Drive, convertir, subir a Storage) siempre al crear la Publicación, nunca esperar a que la cola la dispare — porque el token de Drive del Picker interactivo no sobrevive hasta un momento futuro lejano. Con el acceso a Drive del lado del servidor (ADR-0014), esa restricción ya no aplica de la misma forma para las Publicaciones que nacen de una Idea promocionada: el servidor puede mintear un access token de Drive fresco en cualquier momento, así que preparar puede esperar sin riesgo de que el token venza.
+
+Y conviene que espere: preparar recién cerca del momento real de publicar es justamente lo que mantiene el uso de Storage acotado a minutos por Publicación (ver ADR-0014) en vez de acumular semanas de archivos ya convertidos cuando Bautista calendariza mucho contenido de una sentada.
+
+Decisión: para Publicaciones que vienen de una Idea (`Publicacion.idea` no nulo, ver ADR-0013), `procesarUna` (`lib/worker/publicador-worker.ts`) prepara el archivo ahí mismo, justo antes de publicar, en vez de asumir que ya está preparado. Es un carve-out puntual y explícito, gateado estrictamente por la presencia de esa relación — el camino existente de `/publicar` (Picker interactivo, preparar siempre al crear) sigue exactamente igual que antes, sin tocarse. ADR-0009 sigue aplicando tal cual para ese camino; esta ADR no lo reemplaza, lo acota.
