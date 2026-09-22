@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db/prisma";
 import { obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
 import { AppShell } from "@/components/app-shell";
 import { PublicacionResumen } from "@/components/publicacion-resumen";
+import { DescartarAlertaBoton } from "@/components/descartar-alerta-boton";
+import { descartarAlertaCuenta, descartarAlertaPublicacion } from "@/app/actions";
 
 // Igual que /publicar y /historial: siempre fresco, no cacheable en build time.
 export const dynamic = "force-dynamic";
@@ -23,13 +25,14 @@ export default async function DashboardPage() {
   const cuentasNecesitanReconexion = await prisma.cuenta.findMany({
     where: {
       estado: EstadoCuenta.necesitaReconexion,
+      alertaDescartada: false,
       ...(cuentaIdPermitida ? { id: cuentaIdPermitida } : {}),
     },
     orderBy: { nombre: "asc" },
   });
 
   const publicacionesFallidas = await prisma.publicacion.findMany({
-    where: { estado: EstadoPublicacion.fallida, ...filtroCuenta },
+    where: { estado: EstadoPublicacion.fallida, alertaDescartada: false, ...filtroCuenta },
     orderBy: { actualizadaEn: "desc" },
     take: 5,
     include: { cuenta: true, _count: { select: { archivos: true } } },
@@ -83,17 +86,23 @@ export default async function DashboardPage() {
                   <span className="text-rose-700">
                     {cuenta.nombre} (@{cuenta.igUsername}) necesita reconexión.
                   </span>
-                  <a href="/cuentas" className="shrink-0 font-medium text-rose-900 hover:underline">
-                    Reconectar →
-                  </a>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <a href="/cuentas" className="font-medium text-rose-900 hover:underline">
+                      Reconectar →
+                    </a>
+                    <DescartarAlertaBoton onDescartar={descartarAlertaCuenta.bind(null, cuenta.id)} />
+                  </div>
                 </div>
               ))}
               {publicacionesFallidas.map((publicacion) => (
                 <div
                   key={publicacion.id}
-                  className="flex flex-col gap-1 border-t border-rose-200 pt-3 text-sm first:border-t-0 first:pt-0"
+                  className="flex items-start justify-between gap-2 border-t border-rose-200 pt-3 text-sm first:border-t-0 first:pt-0"
                 >
-                  <PublicacionResumen publicacion={publicacion} mostrarFecha />
+                  <div className="flex flex-1 flex-col gap-1">
+                    <PublicacionResumen publicacion={publicacion} mostrarFecha />
+                  </div>
+                  <DescartarAlertaBoton onDescartar={descartarAlertaPublicacion.bind(null, publicacion.id)} />
                 </div>
               ))}
             </div>

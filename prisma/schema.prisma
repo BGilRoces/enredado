@@ -29,6 +29,12 @@ model Cuenta {
   accessTokenEncriptado  String?
   tokenExpiraEl          DateTime?
   estado                 EstadoCuenta  @default(conectada)
+  // El dueño ya la resolvió por su cuenta (ej.: reconectó desde el propio
+  // Meta) y no quiere seguir viendo la alerta en el dashboard aunque el
+  // worker todavía no reflejó el cambio. Se resetea a false apenas vuelve a
+  // pasar por `necesitaReconexion` (ver lib/worker/token-renewal-worker.ts),
+  // así una reconexión fallida de nuevo sí vuelve a alertar.
+  alertaDescartada       Boolean       @default(false)
   creadaEn               DateTime      @default(now())
   actualizadaEn          DateTime      @updatedAt
   publicaciones          Publicacion[]
@@ -80,6 +86,12 @@ model Publicacion {
   tipoMedia     TipoMedia?
   storageUrl    String?
   estado        EstadoPublicacion @default(pendiente)
+  // Igual que en `Cuenta.alertaDescartada`: el dueño ya vio esta falla y no
+  // quiere que siga apareciendo en "Necesita atención". Una Publicación
+  // fallida es terminal (nunca vuelve a transicionar a `fallida`, ver
+  // lib/worker/publicador-worker.ts), así que a diferencia de la Cuenta acá
+  // no hace falta resetearla en ningún lado.
+  alertaDescartada Boolean        @default(false)
   metaMediaId   String?
   // Momento real en que Meta confirmó la publicación — no se infiere de
   // `actualizadaEn` (que se mueve con cualquier update a la fila) para que

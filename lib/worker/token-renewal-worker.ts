@@ -33,7 +33,10 @@ async function renovarCuenta(cuenta: Cuenta): Promise<void> {
   } else {
     await prisma.cuenta.update({
       where: { id: cuenta.id },
-      data: { estado: EstadoCuenta.necesitaReconexion },
+      // Reseteamos el descarte: si el dueño ya había cerrado esta alerta en
+      // un ciclo anterior, una reconexión que vuelve a fallar tiene que
+      // volver a mostrarse (ver Cuenta.alertaDescartada en el schema).
+      data: { estado: EstadoCuenta.necesitaReconexion, alertaDescartada: false },
     });
   }
 }
