@@ -1,7 +1,8 @@
 import { EstadoIdea } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
-import { FiltroCheckboxes, parsearSeleccionMultiple } from "@/components/filtro-checkboxes";
+import { FiltroCheckboxes } from "@/components/filtro-checkboxes";
+import { parsearSeleccionMultiple } from "@/lib/parsear-seleccion-multiple";
 import { IdeaFilaExpandible } from "@/components/idea-fila-expandible";
 import { ETIQUETAS_POR_ESTADO_IDEA } from "@/components/etiqueta-estado-idea";
 import { AppShell } from "@/components/app-shell";

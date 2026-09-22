@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/db/prisma";
 import { obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
 import { mesEnGrilla } from "@/lib/calendario/mes-en-grilla";
-import { FiltroCheckboxes, parsearSeleccionMultiple } from "@/components/filtro-checkboxes";
+import { FiltroCheckboxes } from "@/components/filtro-checkboxes";
+import { parsearSeleccionMultiple } from "@/lib/parsear-seleccion-multiple";
 import { CalendarioMes, type IdeaEnCalendario } from "@/components/calendario-mes";
 import { AppShell } from "@/components/app-shell";
 
