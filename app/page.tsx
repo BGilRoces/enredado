@@ -34,7 +34,7 @@ export default async function DashboardPage() {
   const publicacionesFallidas = await prisma.publicacion.findMany({
     where: { estado: EstadoPublicacion.fallida, alertaDescartada: false, ...filtroCuenta },
     orderBy: { actualizadaEn: "desc" },
-    take: 5,
+    take: 50,
     include: { cuenta: true, _count: { select: { archivos: true } } },
   });
 
@@ -94,27 +94,32 @@ export default async function DashboardPage() {
                   </div>
                 </div>
               ))}
-              {publicacionesFallidas.map((publicacion) => (
+              {publicacionesFallidas.length > 0 && (
                 <div
-                  key={publicacion.id}
-                  className="flex items-start justify-between gap-2 border-t border-rose-200 pt-3 text-sm first:border-t-0 first:pt-0"
+                  className={`flex max-h-[272px] flex-col gap-3 overflow-y-auto pr-1 ${
+                    cuentasNecesitanReconexion.length > 0 ? "border-t border-rose-200 pt-3" : ""
+                  }`}
                 >
-                  <div className="flex flex-1 flex-col gap-1">
-                    <PublicacionResumen publicacion={publicacion} mostrarFecha />
-                  </div>
-                  <DescartarAlertaBoton onDescartar={descartarAlertaPublicacion.bind(null, publicacion.id)} />
+                  {publicacionesFallidas.map((publicacion) => (
+                    <div
+                      key={publicacion.id}
+                      className="flex items-start justify-between gap-2 border-t border-rose-200 pt-3 text-sm first:border-t-0 first:pt-0"
+                    >
+                      <div className="flex flex-1 flex-col gap-1">
+                        <PublicacionResumen publicacion={publicacion} mostrarFecha />
+                      </div>
+                      <DescartarAlertaBoton
+                        onDescartar={descartarAlertaPublicacion.bind(null, publicacion.id)}
+                      />
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
           )}
 
           <section className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-zinc-900">Próximo en la cola</h2>
-              <a href="/publicar" className="text-sm font-medium text-indigo-600 hover:text-indigo-700">
-                Publicar →
-              </a>
-            </div>
+            <h2 className="text-sm font-semibold text-zinc-900">Próximo en la cola</h2>
             {proximasEnCola.length === 0 ? (
               <p className="text-sm text-zinc-500">No hay Publicaciones en cola.</p>
             ) : (
@@ -132,12 +137,7 @@ export default async function DashboardPage() {
           </section>
 
           <section className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-zinc-900">Actividad reciente</h2>
-              <a href="/historial" className="text-sm font-medium text-indigo-600 hover:text-indigo-700">
-                Ver historial →
-              </a>
-            </div>
+            <h2 className="text-sm font-semibold text-zinc-900">Actividad reciente</h2>
             {actividadReciente.length === 0 ? (
               <p className="text-sm text-zinc-500">Todavía no se publicó nada.</p>
             ) : (

@@ -74,12 +74,7 @@ export default async function PublicarPage({
 
   return (
     <AppShell active="publicar">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Publicar</h1>
-        <a href="/historial" className="text-sm font-medium text-indigo-600 hover:text-indigo-700">
-          Ver historial completo →
-        </a>
-      </div>
+      <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Publicar</h1>
 
       {cuentas.length === 0 ? (
         <p className="text-sm text-zinc-500">

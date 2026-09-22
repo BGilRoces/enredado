@@ -90,13 +90,7 @@ export default async function CalendarioPage({
 
   return (
     <AppShell active="calendario">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Calendario</h1>
-        {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- mismo patrón que el resto del panel, sin next/link */}
-        <a href="/ideas" className="text-sm font-medium text-indigo-600 hover:text-indigo-700">
-          Ver notebook →
-        </a>
-      </div>
+      <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Calendario</h1>
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">

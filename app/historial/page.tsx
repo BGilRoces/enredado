@@ -57,14 +57,9 @@ export default async function HistorialPage({
 
   return (
     <AppShell active="historial">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Historial</h1>
-        <a href="/publicar" className="text-sm font-medium text-indigo-600 hover:text-indigo-700">
-          Publicar →
-        </a>
-      </div>
+      <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Historial</h1>
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <FiltroCheckboxes
           name="cuentaId"
           etiqueta="Cuenta:"

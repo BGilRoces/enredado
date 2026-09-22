@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { EstadoCuenta } from "@prisma/client";
+import { EstadoCuenta, EstadoPublicacion } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { asegurarAccesoACuenta } from "@/lib/auth/cuenta-permitida";
 
@@ -29,6 +29,14 @@ export async function desconectarCuenta(id: string) {
  * Sólo permitido si está desconectada y sin Publicaciones/Ideas asociadas,
  * para no perder historial ni romper una fila que sigue en uso.
  *
+ * Una Publicación `cancelada` sólo se llega a ese estado desde `pendiente`
+ * (ver cancelarPublicacion en app/publicar/actions.ts) — nunca salió por
+ * Meta, así que no es "historial" real. Sin excluirla acá, borrar una Idea
+ * con una Publicación pendiente (eliminarIdea la cancela pero no la borra,
+ * y su ideaId queda en null por el onDelete: SetNull del schema) dejaba una
+ * fila fantasma que bloqueaba el borrado de la Cuenta para siempre, sin
+ * forma de sacarla desde la UI.
+ *
  * Devuelve un resultado en vez de tirar para los casos esperados: un `throw`
  * en un Server Action se manda al cliente con el mensaje pisado por Next en
  * producción (el genérico "Minified React error #441"), así que la validación
@@ -42,7 +50,9 @@ export async function eliminarCuenta(id: string): Promise<{ ok: true } | { ok: f
   }
 
   const [publicaciones, ideas] = await Promise.all([
-    prisma.publicacion.count({ where: { cuentaId: id } }),
+    prisma.publicacion.count({
+      where: { cuentaId: id, estado: { not: EstadoPublicacion.cancelada } },
+    }),
     prisma.idea.count({ where: { cuentaId: id } }),
   ]);
   if (publicaciones > 0 || ideas > 0) {
