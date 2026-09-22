@@ -28,12 +28,17 @@ export async function desconectarCuenta(id: string) {
  * cuando reconectar una cuenta crea una fila nueva en vez de reusar la vieja.
  * Sólo permitido si está desconectada y sin Publicaciones/Ideas asociadas,
  * para no perder historial ni romper una fila que sigue en uso.
+ *
+ * Devuelve un resultado en vez de tirar para los casos esperados: un `throw`
+ * en un Server Action se manda al cliente con el mensaje pisado por Next en
+ * producción (el genérico "Minified React error #441"), así que la validación
+ * nunca se vería.
  */
-export async function eliminarCuenta(id: string) {
+export async function eliminarCuenta(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
   await asegurarAccesoACuenta(id);
   const cuenta = await prisma.cuenta.findUniqueOrThrow({ where: { id } });
   if (cuenta.estado !== EstadoCuenta.desconectada) {
-    throw new Error("Sólo se pueden eliminar Cuentas desconectadas.");
+    return { ok: false, error: "Sólo se pueden eliminar Cuentas desconectadas." };
   }
 
   const [publicaciones, ideas] = await Promise.all([
@@ -41,9 +46,10 @@ export async function eliminarCuenta(id: string) {
     prisma.idea.count({ where: { cuentaId: id } }),
   ]);
   if (publicaciones > 0 || ideas > 0) {
-    throw new Error("Esta Cuenta tiene Publicaciones o Ideas asociadas, no se puede eliminar.");
+    return { ok: false, error: "Esta Cuenta tiene Publicaciones o Ideas asociadas, no se puede eliminar." };
   }
 
   await prisma.cuenta.delete({ where: { id } });
   revalidatePath("/cuentas");
+  return { ok: true };
 }

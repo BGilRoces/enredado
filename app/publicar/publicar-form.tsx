@@ -144,7 +144,7 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
       <div className="flex flex-col gap-2">
         <button
           type="button"
-          onClick={() => elegirDeDrive({ multiple: tipoPublicacion !== "reel" })}
+          onClick={() => elegirDeDrive()}
           className="self-start rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-100"
         >
           Elegir de Google Drive

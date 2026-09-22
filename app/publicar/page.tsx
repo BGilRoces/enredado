@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
 import { PublicarForm } from "./publicar-form";
 import { cancelarPublicacion, editarPublicacion } from "./actions";
-import { CuentaFiltroForm } from "@/components/cuenta-filtro-form";
+import { FiltroCheckboxes, parsearSeleccionMultiple } from "@/components/filtro-checkboxes";
 import { PublicacionResumen } from "@/components/publicacion-resumen";
 import { PublicacionFilaExpandible } from "@/components/publicacion-fila-expandible";
 import { AppShell } from "@/components/app-shell";
@@ -23,21 +23,28 @@ export default async function PublicarPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const params = await searchParams;
-  const cuentaFiltro = typeof params.cuentaId === "string" ? params.cuentaId : "";
 
   const cuentaIdPermitida = await obtenerCuentaIdPermitida();
-  // Un colaborador restringido no elige por URL: siempre ve solo su Cuenta.
-  const cuentaId = cuentaIdPermitida ?? (cuentaFiltro || undefined);
 
   const cuentas = await prisma.cuenta.findMany({
     where: { estado: EstadoCuenta.conectada, ...(cuentaIdPermitida ? { id: cuentaIdPermitida } : {}) },
     orderBy: { nombre: "asc" },
   });
 
+  const cuentasFiltro = parsearSeleccionMultiple(
+    params.cuentaId,
+    cuentas.map((cuenta) => cuenta.id),
+  );
+
   const pendientes = await prisma.publicacion.findMany({
     where: {
       estado: { in: [EstadoPublicacion.pendiente, EstadoPublicacion.publicando] },
-      ...(cuentaId ? { cuentaId } : {}),
+      // Un colaborador restringido no elige por URL: siempre ve solo su Cuenta.
+      ...(cuentaIdPermitida
+        ? { cuentaId: cuentaIdPermitida }
+        : cuentasFiltro
+          ? { cuentaId: { in: cuentasFiltro } }
+          : {}),
     },
     orderBy: { creadaEn: "asc" },
     include: { cuenta: true, _count: { select: { archivos: true } } },
@@ -94,7 +101,12 @@ export default async function PublicarPage({
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-zinc-700">Pendientes</h2>
-          <CuentaFiltroForm cuentas={cuentas} cuentaSeleccionada={cuentaFiltro} />
+          <FiltroCheckboxes
+            name="cuentaId"
+            etiqueta="Cuenta:"
+            opciones={cuentas.map((cuenta) => ({ value: cuenta.id, label: cuenta.nombre }))}
+            seleccionadas={cuentasFiltro}
+          />
         </div>
 
         {pendientes.length === 0 ? (
@@ -168,7 +180,7 @@ export default async function PublicarPage({
       {publicaciones.length > 0 && (
         <div className="flex flex-col gap-2">
           <h2 className="text-sm font-medium text-zinc-700">Últimas Publicaciones</h2>
-          <ul className="flex flex-col gap-2">
+          <ul className="flex max-h-[220px] flex-col gap-2 overflow-y-auto pr-1">
             {publicaciones.map((publicacion) => (
               <PublicacionFilaExpandible key={publicacion.id} publicacion={publicacion} />
             ))}

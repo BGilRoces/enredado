@@ -14,7 +14,8 @@ export function EliminarCuentaBoton({ id, nombre }: { id: string; nombre: string
     setError(null);
     startTransition(async () => {
       try {
-        await eliminarCuenta(id);
+        const resultado = await eliminarCuenta(id);
+        if (!resultado.ok) setError(resultado.error);
       } catch (err) {
         setError(mensajeDeError(err));
       }

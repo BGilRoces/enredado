@@ -54,7 +54,6 @@ export default async function NuevaIdeaPage({
   return (
     <AppShell active="ideas">
       <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Nueva idea</h1>
-
       {typeof error === "string" && (
         <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>
       )}

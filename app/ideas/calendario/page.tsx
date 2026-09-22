@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
 import { mesEnGrilla } from "@/lib/calendario/mes-en-grilla";
-import { CuentaFiltroForm } from "@/components/cuenta-filtro-form";
+import { FiltroCheckboxes, parsearSeleccionMultiple } from "@/components/filtro-checkboxes";
 import { CalendarioMes, type IdeaEnCalendario } from "@/components/calendario-mes";
 import { AppShell } from "@/components/app-shell";
 
@@ -38,16 +38,19 @@ export default async function CalendarioPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const params = await searchParams;
-  const cuentaFiltro = typeof params.cuentaId === "string" ? params.cuentaId : "";
   const { anio, mes } = parsearMes(typeof params.mes === "string" ? params.mes : undefined);
 
   const cuentaIdPermitida = await obtenerCuentaIdPermitida();
-  const cuentaId = cuentaIdPermitida ?? (cuentaFiltro || undefined);
 
   const cuentas = await prisma.cuenta.findMany({
     where: cuentaIdPermitida ? { id: cuentaIdPermitida } : undefined,
     orderBy: { nombre: "asc" },
   });
+
+  const cuentasFiltro = parsearSeleccionMultiple(
+    params.cuentaId,
+    cuentas.map((cuenta) => cuenta.id),
+  );
 
   const dias = mesEnGrilla(anio, mes);
   const desde = dias[0].fecha;
@@ -56,7 +59,11 @@ export default async function CalendarioPage({
   const ideas = await prisma.idea.findMany({
     where: {
       programadaPara: { gte: desde, lt: hasta },
-      ...(cuentaId ? { cuentaId } : {}),
+      ...(cuentaIdPermitida
+        ? { cuentaId: cuentaIdPermitida }
+        : cuentasFiltro
+          ? { cuentaId: { in: cuentasFiltro } }
+          : {}),
     },
     include: { cuenta: true, publicaciones: { select: { estado: true, programadaPara: true } } },
   });
@@ -78,7 +85,7 @@ export default async function CalendarioPage({
 
   const anterior = mesSiguiente(anio, mes, -1);
   const siguiente = mesSiguiente(anio, mes, 1);
-  const queryCuenta = cuentaFiltro ? `&cuentaId=${cuentaFiltro}` : "";
+  const queryCuenta = cuentasFiltro !== null ? `&cuentaId=${encodeURIComponent(cuentasFiltro.join(","))}` : "";
 
   return (
     <AppShell active="calendario">
@@ -108,9 +115,12 @@ export default async function CalendarioPage({
             Siguiente →
           </a>
         </div>
-        <CuentaFiltroForm cuentas={cuentas} cuentaSeleccionada={cuentaFiltro}>
-          <input type="hidden" name="mes" value={claveMes(anio, mes)} />
-        </CuentaFiltroForm>
+        <FiltroCheckboxes
+          name="cuentaId"
+          etiqueta="Cuenta:"
+          opciones={cuentas.map((cuenta) => ({ value: cuenta.id, label: cuenta.nombre }))}
+          seleccionadas={cuentasFiltro}
+        />
       </div>
 
       <CalendarioMes dias={dias} ideasPorDia={ideasPorDia} hoyClave={claveDia(new Date())} />

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { bajarImagenComoDataUrl } from "./drive-thumbnail";
 import type { ArchivoElegido } from "./use-google-picker";
 
-/** Mismos mimeType que usa el Picker de Google en desktop (ver abrirPicker en use-google-picker.ts) — no restringir más acá. */
+/** Tipos que acepta Instagram para Post/Historia/Reel — no restringir más acá. */
 const MIME_TYPES_ACEPTADOS = [
   "image/png",
   "image/jpeg",

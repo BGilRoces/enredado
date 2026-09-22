@@ -1,26 +1,12 @@
-import { EstadoCuenta } from "@prisma/client";
+import { EstadoCuenta, EstadoPublicacion } from "@prisma/client";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/db/prisma";
 import { obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
 import { AppShell } from "@/components/app-shell";
+import { PublicacionResumen } from "@/components/publicacion-resumen";
 
-const ACCESOS = [
-  {
-    href: "/cuentas",
-    titulo: "Cuentas",
-    descripcion: "Conectá o revisá el estado de tus Instagrams.",
-  },
-  {
-    href: "/publicar",
-    titulo: "Publicar",
-    descripcion: "Elegí fotos de Drive y subilas como post o historia.",
-  },
-  {
-    href: "/historial",
-    titulo: "Historial",
-    descripcion: "Mirá qué se publicó y qué falló.",
-  },
-];
+// Igual que /publicar y /historial: siempre fresco, no cacheable en build time.
+export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -28,9 +14,42 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
   const cuentaIdPermitida = await obtenerCuentaIdPermitida();
-  const cuentasConectadas = await prisma.cuenta.count({
-    where: { estado: EstadoCuenta.conectada, ...(cuentaIdPermitida ? { id: cuentaIdPermitida } : {}) },
+  const filtroCuenta = cuentaIdPermitida ? { cuentaId: cuentaIdPermitida } : {};
+
+  const totalCuentas = await prisma.cuenta.count({
+    where: cuentaIdPermitida ? { id: cuentaIdPermitida } : undefined,
   });
+
+  const cuentasNecesitanReconexion = await prisma.cuenta.findMany({
+    where: {
+      estado: EstadoCuenta.necesitaReconexion,
+      ...(cuentaIdPermitida ? { id: cuentaIdPermitida } : {}),
+    },
+    orderBy: { nombre: "asc" },
+  });
+
+  const publicacionesFallidas = await prisma.publicacion.findMany({
+    where: { estado: EstadoPublicacion.fallida, ...filtroCuenta },
+    orderBy: { actualizadaEn: "desc" },
+    take: 5,
+    include: { cuenta: true, _count: { select: { archivos: true } } },
+  });
+
+  const proximasEnCola = await prisma.publicacion.findMany({
+    where: { estado: EstadoPublicacion.pendiente, ...filtroCuenta },
+    orderBy: [{ programadaPara: "asc" }, { creadaEn: "asc" }],
+    take: 5,
+    include: { cuenta: true, _count: { select: { archivos: true } } },
+  });
+
+  const actividadReciente = await prisma.publicacion.findMany({
+    where: { estado: EstadoPublicacion.publicada, ...filtroCuenta },
+    orderBy: { publicadaEn: "desc" },
+    take: 5,
+    include: { cuenta: true, _count: { select: { archivos: true } } },
+  });
+
+  const hayAlertas = cuentasNecesitanReconexion.length > 0 || publicacionesFallidas.length > 0;
 
   return (
     <AppShell active="inicio">
@@ -41,28 +60,92 @@ export default async function DashboardPage() {
         <p className="text-sm text-zinc-500">Sesión de {user?.email}</p>
       </div>
 
-      <div className="flex items-center gap-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-        <span className="bg-gradient-to-br from-indigo-600 to-fuchsia-500 bg-clip-text text-4xl font-bold text-transparent">
-          {cuentasConectadas}
-        </span>
-        <p className="text-sm text-zinc-500">
-          Cuenta{cuentasConectadas === 1 ? "" : "s"} de Instagram conectada
-          {cuentasConectadas === 1 ? "" : "s"}.
-        </p>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        {ACCESOS.map((acceso) => (
+      {totalCuentas === 0 ? (
+        <div className="flex flex-col gap-2 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <p className="font-medium text-zinc-900">Todavía no hay Cuentas conectadas.</p>
+          <p className="text-sm text-zinc-500">
+            Conectá tu primer Instagram para poder empezar a publicar.
+          </p>
           <a
-            key={acceso.href}
-            href={acceso.href}
-            className="flex flex-col gap-1 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md"
+            href="/cuentas"
+            className="mt-1 w-fit rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800"
           >
-            <span className="font-medium text-zinc-900">{acceso.titulo}</span>
-            <span className="text-sm text-zinc-500">{acceso.descripcion}</span>
+            Conectar cuenta
           </a>
-        ))}
-      </div>
+        </div>
+      ) : (
+        <>
+          {hayAlertas && (
+            <div className="flex flex-col gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4">
+              <h2 className="text-sm font-semibold text-rose-900">Necesita atención</h2>
+              {cuentasNecesitanReconexion.map((cuenta) => (
+                <div key={cuenta.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-rose-700">
+                    {cuenta.nombre} (@{cuenta.igUsername}) necesita reconexión.
+                  </span>
+                  <a href="/cuentas" className="shrink-0 font-medium text-rose-900 hover:underline">
+                    Reconectar →
+                  </a>
+                </div>
+              ))}
+              {publicacionesFallidas.map((publicacion) => (
+                <div
+                  key={publicacion.id}
+                  className="flex flex-col gap-1 border-t border-rose-200 pt-3 text-sm first:border-t-0 first:pt-0"
+                >
+                  <PublicacionResumen publicacion={publicacion} mostrarFecha />
+                </div>
+              ))}
+            </div>
+          )}
+
+          <section className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-zinc-900">Próximo en la cola</h2>
+              <a href="/publicar" className="text-sm font-medium text-indigo-600 hover:text-indigo-700">
+                Publicar →
+              </a>
+            </div>
+            {proximasEnCola.length === 0 ? (
+              <p className="text-sm text-zinc-500">No hay Publicaciones en cola.</p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {proximasEnCola.map((publicacion) => (
+                  <li
+                    key={publicacion.id}
+                    className="flex flex-col gap-1 rounded-2xl border border-zinc-200 bg-white p-4 text-sm shadow-sm"
+                  >
+                    <PublicacionResumen publicacion={publicacion} mostrarFecha />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-zinc-900">Actividad reciente</h2>
+              <a href="/historial" className="text-sm font-medium text-indigo-600 hover:text-indigo-700">
+                Ver historial →
+              </a>
+            </div>
+            {actividadReciente.length === 0 ? (
+              <p className="text-sm text-zinc-500">Todavía no se publicó nada.</p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {actividadReciente.map((publicacion) => (
+                  <li
+                    key={publicacion.id}
+                    className="flex flex-col gap-1 rounded-2xl border border-zinc-200 bg-white p-4 text-sm shadow-sm"
+                  >
+                    <PublicacionResumen publicacion={publicacion} mostrarFecha />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </>
+      )}
     </AppShell>
   );
 }
