@@ -289,13 +289,28 @@ export async function descalendarizarIdea(id: string): Promise<void> {
   revalidarIdeas();
 }
 
-/** Cancela las Publicaciones vinculadas que todavía se puedan (best-effort) y borra la Idea. */
+/**
+ * Borra la Idea junto con las Publicaciones vinculadas que todavía sigan
+ * pendientes (nunca salieron a Meta, no son "historial" real) — a diferencia
+ * de descalendarizarIdea, acá no queda nada que reusar más adelante, así que
+ * no tiene sentido dejar una fila cancelada huérfana sin la Idea que la
+ * originó. Reusa cancelarPublicacion como guarda atómica (sólo transiciona
+ * si sigue "pendiente" y limpia el archivo de Storage) antes de borrar la
+ * fila; si ya se disparó entre que la leímos y ahora, la dejamos como está
+ * en vez de arriesgar un borrado a medio camino.
+ */
 export async function eliminarIdea(id: string): Promise<void> {
   const idea = await obtenerIdeaOTirar(id);
 
   for (const publicacion of idea.publicaciones) {
-    if (publicacion.estado === EstadoPublicacion.pendiente) {
-      await cancelarPublicacion(publicacion.id).catch(() => {});
+    if (publicacion.estado !== EstadoPublicacion.pendiente) continue;
+    try {
+      await cancelarPublicacion(publicacion.id);
+      await prisma.publicacionArchivo.deleteMany({ where: { publicacionId: publicacion.id } });
+      await prisma.publicacion.delete({ where: { id: publicacion.id } });
+    } catch {
+      // Best-effort: la dejamos "cancelada" y desvinculada (onDelete: SetNull)
+      // en vez de fallar todo el borrado de la Idea por esto.
     }
   }
 

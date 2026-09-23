@@ -5,13 +5,9 @@ import { FiltroCheckboxes } from "@/components/filtro-checkboxes";
 import { parsearSeleccionMultiple } from "@/lib/parsear-seleccion-multiple";
 import { CalendarioMes, type IdeaEnCalendario } from "@/components/calendario-mes";
 import { AppShell } from "@/components/app-shell";
+import { SelectorMes } from "@/components/selector-mes";
 
 export const dynamic = "force-dynamic";
-
-const NOMBRES_MES = [
-  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
-];
 
 function parsearMes(valor: string | undefined): { anio: number; mes: number } {
   const match = valor?.match(/^(\d{4})-(\d{2})$/);
@@ -96,18 +92,18 @@ export default async function CalendarioPage({
         <div className="flex items-center gap-2">
           <a
             href={`/ideas/calendario?mes=${claveMes(anterior.anio, anterior.mes)}${queryCuenta}`}
+            aria-label="Mes anterior"
             className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 transition-colors hover:bg-zinc-50"
           >
-            ← Anterior
+            ←
           </a>
-          <span className="text-sm font-medium text-zinc-900">
-            {NOMBRES_MES[mes - 1]} {anio}
-          </span>
+          <SelectorMes anio={anio} mes={mes} />
           <a
             href={`/ideas/calendario?mes=${claveMes(siguiente.anio, siguiente.mes)}${queryCuenta}`}
+            aria-label="Mes siguiente"
             className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 transition-colors hover:bg-zinc-50"
           >
-            Siguiente →
+            →
           </a>
         </div>
         <FiltroCheckboxes
