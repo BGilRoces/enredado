@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import type { IdeaArchivo } from "@prisma/client";
 import { mensajeDeError } from "@/lib/mensaje-de-error";
+import { DriveMiniatura } from "@/components/drive-miniatura";
 import { eliminarArchivoIdea, reordenarArchivosIdea } from "@/app/ideas/actions";
 
 /**
@@ -16,7 +17,7 @@ export function CarpetaIdeaArchivos({
   archivosIniciales,
 }: {
   ideaId: string;
-  archivosIniciales: Pick<IdeaArchivo, "id" | "nombre" | "driveFileId">[];
+  archivosIniciales: Pick<IdeaArchivo, "id" | "nombre" | "driveFileId" | "driveResourceKey">[];
 }) {
   const [archivos, setArchivos] = useState(archivosIniciales);
   const [arrastrando, setArrastrando] = useState<string | null>(null);
@@ -87,6 +88,7 @@ export function CarpetaIdeaArchivos({
           >
             <span className="flex items-center gap-2 truncate text-zinc-700">
               <span className="text-zinc-400">⠿</span>
+              <DriveMiniatura fileId={archivo.driveFileId} resourceKey={archivo.driveResourceKey} className="h-12 w-12" />
               {archivo.nombre ?? archivo.driveFileId}
             </span>
             <button

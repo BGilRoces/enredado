@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { crearPublicacion, resolverLinkDrive } from "./actions";
 import { DrivePickerMobile } from "./drive-picker-mobile";
 import { useGooglePicker } from "./use-google-picker";
+import { DriveMiniatura } from "@/components/drive-miniatura";
 
 interface CuentaOption {
   id: string;
@@ -220,7 +221,7 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
                     ⠿
                   </button>
                 )}
-                {a.thumbnailUrl && (
+                {a.thumbnailUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element -- viene de Drive, no de next/image
                   <img
                     src={a.thumbnailUrl}
@@ -230,6 +231,8 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
                       e.currentTarget.style.display = "none";
                     }}
                   />
+                ) : (
+                  <DriveMiniatura fileId={a.id} resourceKey={a.resourceKey} />
                 )}
                 {archivos.length > 1 && (
                   <span className="flex flex-col">

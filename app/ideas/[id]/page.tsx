@@ -8,6 +8,7 @@ import { claseBadgeEstadoIdea, etiquetaEstadoIdea } from "@/components/etiqueta-
 import { claseBadgeEstado, etiquetaEstado } from "@/components/etiqueta-estado";
 import { AppShell } from "@/components/app-shell";
 import { CarpetaIdeaArchivos } from "@/components/carpeta-idea-archivos";
+import { DriveMiniatura } from "@/components/drive-miniatura";
 import { DriveLinkIdeaInput } from "@/components/drive-link-idea-input";
 import { SubmitButton } from "@/components/submit-button";
 import {
@@ -219,6 +220,10 @@ export default async function IdeaPage({
               </SubmitButton>
             </div>
           </form>
+
+          {idea.driveFileId && idea.archivos.length === 0 && (
+            <DriveMiniatura fileId={idea.driveFileId} resourceKey={idea.driveResourceKey} className="mt-2 h-32 w-32" />
+          )}
 
           {idea.archivos.length > 0 && (
             <CarpetaIdeaArchivos ideaId={id} archivosIniciales={idea.archivos} />
