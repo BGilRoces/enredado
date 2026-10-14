@@ -9,12 +9,21 @@ import { driveClient } from "@/lib/drive/client";
 import { storageClient } from "@/lib/storage/client";
 import { tick } from "@/lib/worker/publicador-worker";
 import { MAX_ARCHIVOS_CAROUSEL } from "@/lib/publicador/limites";
+import { mintDriveAccessToken } from "@/lib/drive-oauth/mint-access-token";
+import { listarArchivosDeCarpeta } from "@/lib/drive/listar-carpeta";
+import { obtenerArchivoDeDrive } from "@/lib/drive/obtener-archivo";
+import { parsearDriveFolderId, parsearDriveLink } from "@/lib/ideas/parsear-drive-file-id";
+import { esFormatoMediaSoportado } from "@/lib/publicador/preparar-archivo";
 
 export interface CrearPublicacionInput {
   cuentaId: string;
   /** Todos elegidos en la misma sesión del Picker — ver ADR-0011. */
   archivos: { driveFileId: string; resourceKey?: string }[];
-  driveAccessToken: string;
+  /**
+   * Token del Picker del usuario. Si falta (el link se pegó a mano, ver
+   * resolverLinkDrive) se usa el de la conexión guardada en Configuración.
+   */
+  driveAccessToken?: string;
   tipoPublicacion: TipoPublicacion;
   caption: string;
   /** Nulo = publicar apenas la cola la procese ("ahora"). Con valor = programada. */
@@ -36,7 +45,7 @@ async function crearPublicacionSimple(
   cuenta: Cuenta,
   driveFileId: string,
   resourceKey: string | undefined,
-  input: Pick<CrearPublicacionInput, "driveAccessToken" | "tipoPublicacion" | "caption" | "programadaPara">
+  input: Pick<CrearPublicacionInput, "tipoPublicacion" | "caption" | "programadaPara"> & { driveAccessToken: string }
 ): Promise<string> {
   const preparado = await prepararArchivo(
     { driveFileId, resourceKey, driveAccessToken: input.driveAccessToken, tipoPublicacion: input.tipoPublicacion },
@@ -81,7 +90,7 @@ async function crearPublicacionSimple(
  */
 async function crearPublicacionCarousel(
   cuenta: Cuenta,
-  input: CrearPublicacionInput
+  input: CrearPublicacionInput & { driveAccessToken: string }
 ): Promise<string> {
   const preparado = await prepararArchivos(
     { archivos: input.archivos, driveAccessToken: input.driveAccessToken, tipoPublicacion: input.tipoPublicacion },
@@ -148,17 +157,19 @@ export async function crearPublicacion(
     throw new Error(`Instagram permite hasta ${MAX_ARCHIVOS_CAROUSEL} elementos por carousel.`);
   }
 
+  const driveAccessToken = input.driveAccessToken ?? (await mintDriveAccessToken());
+  const conToken = { ...input, driveAccessToken };
   const esCarousel = input.tipoPublicacion === TipoPublicacion.post && input.archivos.length > 1;
 
   const ids: string[] = [];
   if (esCarousel) {
-    ids.push(await crearPublicacionCarousel(cuenta, input));
+    ids.push(await crearPublicacionCarousel(cuenta, conToken));
   } else {
     // Secuencial (no Promise.all): el orden elegido en el Picker tiene que
     // quedar reflejado en `creadaEn`, que es lo que usa la cola para decidir
     // qué Historia sale primero cuando hay varias "ahora" en simultáneo.
     for (const archivo of input.archivos) {
-      ids.push(await crearPublicacionSimple(cuenta, archivo.driveFileId, archivo.resourceKey, input));
+      ids.push(await crearPublicacionSimple(cuenta, archivo.driveFileId, archivo.resourceKey, conToken));
     }
   }
 
@@ -171,6 +182,48 @@ export async function crearPublicacion(
     const publicacion = porId.get(id)!;
     return { estado: publicacion.estado, error: publicacion.error ?? undefined };
   });
+}
+
+export interface ArchivoDeLink {
+  id: string;
+  nombre: string;
+  mimeType: string;
+  resourceKey?: string;
+}
+
+/**
+ * Resuelve un link de Drive pegado a mano (archivo o carpeta) a la lista de
+ * archivos a publicar, con la conexión de Drive guardada en Configuración
+ * (mismo criterio que marcarEnDrive en ideas). Una carpeta lista su primer
+ * nivel y se queda con lo que Instagram acepta; un Reel es un solo video, así
+ * que no admite carpeta.
+ */
+export async function resolverLinkDrive(
+  link: string,
+  tipoPublicacion: TipoPublicacion
+): Promise<ArchivoDeLink[]> {
+  const archivo = parsearDriveLink(link);
+  const folderId = archivo ? null : parsearDriveFolderId(link);
+  if (!archivo && !folderId) {
+    throw new Error('Ese link no parece ser de un archivo ni de una carpeta de Google Drive (probá con el de "Compartir").');
+  }
+  if (folderId && tipoPublicacion === TipoPublicacion.reel) {
+    throw new Error("Un Reel es un solo video — pegá el link del archivo puntual, no el de una carpeta.");
+  }
+
+  const accessToken = await mintDriveAccessToken();
+
+  if (archivo) {
+    return [await obtenerArchivoDeDrive(archivo.driveFileId, accessToken, archivo.resourceKey)];
+  }
+
+  const soportados = (await listarArchivosDeCarpeta(folderId!, accessToken)).filter((a) =>
+    esFormatoMediaSoportado(a.mimeType)
+  );
+  if (soportados.length === 0) {
+    throw new Error("Esa carpeta no tiene fotos ni videos en un formato que Instagram acepte.");
+  }
+  return soportados;
 }
 
 /** Solo se puede cancelar mientras siga "pendiente" — no si la cola ya la disparó. */

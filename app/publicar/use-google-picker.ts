@@ -35,7 +35,8 @@ export interface ArchivoElegido {
   id: string;
   nombre: string;
   mimeType: string;
-  accessToken: string;
+  /** Falta si el archivo vino de un link pegado: el servidor usa la conexión guardada. */
+  accessToken?: string;
   resourceKey?: string;
   /** Preview antes de subir — puede faltar (Drive no siempre la genera). */
   thumbnailUrl?: string;
@@ -130,6 +131,12 @@ export function useGooglePicker() {
     });
   }
 
+  /** Reemplaza la selección con archivos resueltos desde un link pegado (sin token ni preview). */
+  function setArchivosDeLink(elegidos: ArchivoElegido[]) {
+    setArchivos(elegidos);
+    setError(null);
+  }
+
   function limpiarSeleccion() {
     setArchivos([]);
   }
@@ -162,6 +169,7 @@ export function useGooglePicker() {
     moverArchivo,
     moverArchivoA,
     limpiarSeleccion,
+    setArchivosDeLink,
     error,
     pickerMobileAbierto,
     accessTokenPickerMobile,

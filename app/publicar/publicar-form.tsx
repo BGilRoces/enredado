@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { crearPublicacion } from "./actions";
+import { crearPublicacion, resolverLinkDrive } from "./actions";
 import { DrivePickerMobile } from "./drive-picker-mobile";
 import { useGooglePicker } from "./use-google-picker";
 
@@ -37,6 +37,7 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
     moverArchivo,
     moverArchivoA,
     limpiarSeleccion,
+    setArchivosDeLink,
     error: errorPicker,
     pickerMobileAbierto,
     accessTokenPickerMobile,
@@ -48,6 +49,8 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
   const [caption, setCaption] = useState("");
   const [cuando, setCuando] = useState<"ahora" | "programar">("ahora");
   const [programadaPara, setProgramadaPara] = useState("");
+  const [linkDrive, setLinkDrive] = useState("");
+  const [resolviendoLink, setResolviendoLink] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [errorPublicar, setErrorPublicar] = useState<string | null>(null);
@@ -101,6 +104,22 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
     if (tipo === "historia") setCaption("");
   }
 
+  async function usarLinkPegado() {
+    if (!linkDrive.trim()) return;
+    setResolviendoLink(true);
+    setErrorPublicar(null);
+    setMensaje(null);
+    try {
+      const resueltos = await resolverLinkDrive(linkDrive, tipoPublicacion);
+      setArchivosDeLink(resueltos.map((r) => ({ ...r })));
+      setLinkDrive("");
+    } catch (err) {
+      setErrorPublicar(err instanceof Error ? err.message : String(err));
+    } finally {
+      setResolviendoLink(false);
+    }
+  }
+
   async function onSubmit(formEvent: React.FormEvent) {
     formEvent.preventDefault();
     if (archivos.length === 0 || demasiadosParaCarousel) return;
@@ -111,7 +130,9 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
       const resultados = await crearPublicacion({
         cuentaId,
         archivos: archivos.map((a) => ({ driveFileId: a.id, resourceKey: a.resourceKey })),
-        driveAccessToken: archivos[0].accessToken,
+        // Si algún archivo vino de un link pegado no hay token de Picker: el
+        // servidor usa la conexión guardada para todos (misma cuenta de Drive).
+        driveAccessToken: archivos.every((a) => a.accessToken) ? archivos[0].accessToken : undefined,
         tipoPublicacion,
         caption,
         programadaPara: cuando === "programar" && programadaPara ? new Date(programadaPara) : null,
@@ -149,6 +170,28 @@ export function PublicarForm({ cuentas }: { cuentas: CuentaOption[] }) {
         >
           Elegir de Google Drive
         </button>
+        <div className="flex gap-2">
+          <input
+            value={linkDrive}
+            onChange={(e) => setLinkDrive(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void usarLinkPegado();
+              }
+            }}
+            placeholder="o pegá un link de Drive (archivo o carpeta)"
+            className="min-w-0 flex-1 rounded-lg border border-zinc-300 p-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+          />
+          <button
+            type="button"
+            onClick={() => void usarLinkPegado()}
+            disabled={!linkDrive.trim() || resolviendoLink}
+            className="shrink-0 rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-zinc-50 disabled:opacity-40"
+          >
+            {resolviendoLink ? "Buscando…" : "Usar link"}
+          </button>
+        </div>
         {archivos.length > 0 && (
           <ul className="flex flex-col gap-1 rounded-lg border border-zinc-200 bg-zinc-50 p-2">
             {archivos.map((a, i) => (
