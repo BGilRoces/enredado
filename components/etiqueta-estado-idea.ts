@@ -16,6 +16,24 @@ const BADGES: Record<EstadoIdea, string> = {
   enDrive: "bg-amber-100 text-amber-700",
 };
 
+const BADGE_PROGRAMADA = "bg-sky-100 text-sky-700";
+
+/**
+ * Una Idea `enDrive` con fecha futura todavía no tiene Publicación: el worker
+ * la promociona recién cuando llega la hora (ver ADR-0013). Las creadas desde
+ * el panel ya nacen promocionadas ("Programada"), pero las programadas por
+ * MCP no — sin esto figuraban como "En Drive" aunque ya estén agendadas.
+ * Si la hora ya pasó y no se promovió, se descartó (ADR-0018): vuelve a "En Drive".
+ */
+function estaProgramadaSinPromover(idea: IdeaConEstado): boolean {
+  return (
+    idea.publicaciones.length === 0 &&
+    idea.estado === EstadoIdea.enDrive &&
+    idea.programadaPara !== null &&
+    idea.programadaPara.getTime() > Date.now()
+  );
+}
+
 /** Peor-primero: si el grupo tiene alguna en este estado, es la más relevante para mostrar como resumen. */
 const PRIORIDAD: EstadoPublicacion[] = [
   EstadoPublicacion.fallida,
@@ -50,6 +68,7 @@ function representativa(publicaciones: IdeaConEstado["publicaciones"]) {
  * ADR-0016) se suma un contador tipo "(2/3)" salvo que estén todas iguales.
  */
 export function etiquetaEstadoIdea(idea: IdeaConEstado): string {
+  if (estaProgramadaSinPromover(idea)) return "Programada";
   if (idea.publicaciones.length === 0) return ETIQUETAS[idea.estado];
 
   const base = etiquetaEstado(representativa(idea.publicaciones));
@@ -63,6 +82,7 @@ export function etiquetaEstadoIdea(idea: IdeaConEstado): string {
 }
 
 export function claseBadgeEstadoIdea(idea: IdeaConEstado): string {
+  if (estaProgramadaSinPromover(idea)) return BADGE_PROGRAMADA;
   if (idea.publicaciones.length === 0) return BADGES[idea.estado];
   return claseBadgeEstado(representativa(idea.publicaciones));
 }
