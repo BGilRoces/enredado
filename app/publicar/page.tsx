@@ -2,22 +2,16 @@ import { EstadoCuenta, EstadoPublicacion } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
 import { PublicarForm } from "./publicar-form";
-import { cancelarPublicacion, editarPublicacion } from "./actions";
 import { FiltroCheckboxes } from "@/components/filtro-checkboxes";
 import { parsearSeleccionMultiple } from "@/lib/parsear-seleccion-multiple";
 import { PublicacionResumen } from "@/components/publicacion-resumen";
 import { PublicacionFilaExpandible } from "@/components/publicacion-fila-expandible";
 import { AppShell } from "@/components/app-shell";
-import { SubmitButton } from "@/components/submit-button";
 
 // Sin esto, Next intenta prerenderizar la página en build time (no hay
 // DATABASE_URL disponible ahí) — la lista de Cuentas/Publicaciones necesita
 // ser siempre fresca de todos modos, así que nunca debería cachearse.
 export const dynamic = "force-dynamic";
-
-function aInputDatetimeLocal(fecha: Date | null): string {
-  return fecha ? fecha.toISOString().slice(0, 16) : "";
-}
 
 export default async function PublicarPage({
   searchParams,
@@ -117,56 +111,13 @@ export default async function PublicarPage({
               >
                 <PublicacionResumen publicacion={publicacion} mostrarFecha />
 
-                {publicacion.estado === EstadoPublicacion.pendiente && (
-                  <>
-                    <form
-                      action={async (formData: FormData) => {
-                        "use server";
-                        const caption = String(formData.get("caption") ?? "");
-                        const programadaParaRaw = String(formData.get("programadaPara") ?? "");
-                        await editarPublicacion(publicacion.id, {
-                          caption,
-                          programadaPara: programadaParaRaw ? new Date(programadaParaRaw) : null,
-                        });
-                      }}
-                      className="flex flex-col gap-2"
-                    >
-                      <textarea
-                        name="caption"
-                        defaultValue={publicacion.caption ?? ""}
-                        rows={2}
-                        className="rounded-lg border border-zinc-300 p-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                      />
-                      <input
-                        type="datetime-local"
-                        name="programadaPara"
-                        defaultValue={aInputDatetimeLocal(publicacion.programadaPara)}
-                        className="rounded-lg border border-zinc-300 p-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                      />
-                      <span className="text-xs text-zinc-500">
-                        Hora UTC. Dejá el campo vacío para pasar a &quot;ahora&quot;.
-                      </span>
-                      <SubmitButton
-                        pendingText="Guardando…"
-                        className="self-start rounded-lg border border-zinc-300 px-2 py-1 text-xs font-medium transition-colors hover:bg-zinc-50"
-                      >
-                        Guardar cambios
-                      </SubmitButton>
-                    </form>
-                    <form
-                      action={async () => {
-                        "use server";
-                        await cancelarPublicacion(publicacion.id);
-                      }}
-                    >
-                      <SubmitButton
-                        pendingText="Cancelando…"
-                        className="rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-700 transition-colors hover:bg-rose-50"
-                      >
-                        Cancelar
-                      </SubmitButton>
-                    </form>
-                  </>
+                {publicacion.ideaId && (
+                  <a
+                    href={`/ideas/${publicacion.ideaId}`}
+                    className="self-start text-xs font-medium text-indigo-600 hover:text-indigo-700"
+                  >
+                    Editar, reprogramar o cancelar →
+                  </a>
                 )}
               </li>
             ))}

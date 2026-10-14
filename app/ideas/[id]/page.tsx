@@ -80,6 +80,7 @@ export default async function IdeaPage({
   await asegurarAccesoACuenta(idea.cuentaId);
 
   const promocionada = idea.publicaciones.length > 0;
+  const hayPendientes = idea.publicaciones.some((p) => p.estado === "pendiente");
   const atrasada = esAtrasada(new Date(), { ...idea, yaPromocionada: promocionada });
 
   async function guardar(formData: FormData) {
@@ -113,6 +114,11 @@ export default async function IdeaPage({
     await conManejoDeError(id, () =>
       valor ? calendarizarIdea(id, new Date(valor)) : descalendarizarIdea(id)
     );
+  }
+
+  async function cancelarPublicaciones() {
+    "use server";
+    await conManejoDeError(id, () => descalendarizarIdea(id));
   }
 
   async function borrar() {
@@ -171,6 +177,17 @@ export default async function IdeaPage({
             </ul>
           )}
         </div>
+      )}
+
+      {hayPendientes && (
+        <form action={cancelarPublicaciones}>
+          <SubmitButton
+            pendingText="Cancelando…"
+            className="rounded-lg border border-rose-200 px-3 py-1.5 text-sm text-rose-700 transition-colors hover:bg-rose-50"
+          >
+            Cancelar publicación programada
+          </SubmitButton>
+        </form>
       )}
 
       {!promocionada && (

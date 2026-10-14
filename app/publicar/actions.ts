@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { EstadoCuenta, EstadoPublicacion, TipoPublicacion, type Cuenta } from "@prisma/client";
+import { EstadoCuenta, EstadoIdea, EstadoPublicacion, TipoPublicacion, type Cuenta } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { asegurarAccesoACuenta } from "@/lib/auth/cuenta-permitida";
 import { prepararArchivo, prepararArchivos } from "@/lib/publicador/preparar-archivo";
@@ -14,6 +14,7 @@ import { listarArchivosDeCarpeta } from "@/lib/drive/listar-carpeta";
 import { obtenerArchivoDeDrive } from "@/lib/drive/obtener-archivo";
 import { parsearDriveFolderId, parsearDriveLink } from "@/lib/ideas/parsear-drive-file-id";
 import { esFormatoMediaSoportado } from "@/lib/publicador/preparar-archivo";
+import { tituloDesdeCaption } from "@/lib/ideas/titulo-desde-caption";
 
 export interface CrearPublicacionInput {
   cuentaId: string;
@@ -45,7 +46,8 @@ async function crearPublicacionSimple(
   cuenta: Cuenta,
   driveFileId: string,
   resourceKey: string | undefined,
-  input: Pick<CrearPublicacionInput, "tipoPublicacion" | "caption" | "programadaPara"> & { driveAccessToken: string }
+  input: Pick<CrearPublicacionInput, "tipoPublicacion" | "caption" | "programadaPara"> & { driveAccessToken: string },
+  ideaId: string
 ): Promise<string> {
   const preparado = await prepararArchivo(
     { driveFileId, resourceKey, driveAccessToken: input.driveAccessToken, tipoPublicacion: input.tipoPublicacion },
@@ -62,6 +64,7 @@ async function crearPublicacionSimple(
         programadaPara: input.programadaPara,
         estado: EstadoPublicacion.fallida,
         error: preparado.error,
+        ideaId,
       },
     });
     return publicacion.id;
@@ -77,6 +80,7 @@ async function crearPublicacionSimple(
       tipoMedia: preparado.tipoMedia,
       storageUrl: preparado.storageUrl,
       estado: EstadoPublicacion.pendiente,
+      ideaId,
     },
   });
   return publicacion.id;
@@ -90,7 +94,8 @@ async function crearPublicacionSimple(
  */
 async function crearPublicacionCarousel(
   cuenta: Cuenta,
-  input: CrearPublicacionInput & { driveAccessToken: string }
+  input: CrearPublicacionInput & { driveAccessToken: string },
+  ideaId: string
 ): Promise<string> {
   const preparado = await prepararArchivos(
     { archivos: input.archivos, driveAccessToken: input.driveAccessToken, tipoPublicacion: input.tipoPublicacion },
@@ -106,6 +111,7 @@ async function crearPublicacionCarousel(
         programadaPara: input.programadaPara,
         estado: EstadoPublicacion.fallida,
         error: preparado.error,
+        ideaId,
       },
     });
     return publicacion.id;
@@ -118,6 +124,7 @@ async function crearPublicacionCarousel(
       caption: input.caption || null,
       programadaPara: input.programadaPara,
       estado: EstadoPublicacion.pendiente,
+      ideaId,
       archivos: {
         create: preparado.archivos.map((archivo, orden) => ({
           orden,
@@ -161,27 +168,73 @@ export async function crearPublicacion(
   const conToken = { ...input, driveAccessToken };
   const esCarousel = input.tipoPublicacion === TipoPublicacion.post && input.archivos.length > 1;
 
+  // Toda Publicación nace vinculada a una Idea (ver ADR-0019), así aparece
+  // en Ideas y en el calendario como cualquier otra. Se crea sin fecha para
+  // que el worker de Ideas no la vea elegible mientras se prepara el archivo
+  // (puede tardar segundos); la fecha se setea recién cuando ya están creadas
+  // las Publicaciones, que a esa altura cuentan como "ya promocionada".
+  const idea = await prisma.idea.create({
+    data: {
+      cuentaId: cuenta.id,
+      titulo: tituloDesdeCaption(input.caption, `${input.tipoPublicacion} sin título`),
+      tipo: input.tipoPublicacion,
+      caption: input.caption || null,
+      estado: EstadoIdea.enDrive,
+      driveFileId: input.archivos.length === 1 ? input.archivos[0].driveFileId : null,
+      driveResourceKey: input.archivos.length === 1 ? (input.archivos[0].resourceKey ?? null) : null,
+      archivos:
+        input.archivos.length > 1
+          ? {
+              create: input.archivos.map((archivo, orden) => ({
+                orden,
+                driveFileId: archivo.driveFileId,
+                driveResourceKey: archivo.resourceKey ?? null,
+              })),
+            }
+          : undefined,
+    },
+  });
+
   const ids: string[] = [];
-  if (esCarousel) {
-    ids.push(await crearPublicacionCarousel(cuenta, conToken));
-  } else {
-    // Secuencial (no Promise.all): el orden elegido en el Picker tiene que
-    // quedar reflejado en `creadaEn`, que es lo que usa la cola para decidir
-    // qué Historia sale primero cuando hay varias "ahora" en simultáneo.
-    for (const archivo of input.archivos) {
-      ids.push(await crearPublicacionSimple(cuenta, archivo.driveFileId, archivo.resourceKey, conToken));
+  try {
+    if (esCarousel) {
+      ids.push(await crearPublicacionCarousel(cuenta, conToken, idea.id));
+    } else {
+      // Secuencial (no Promise.all): el orden elegido en el Picker tiene que
+      // quedar reflejado en `creadaEn`, que es lo que usa la cola para decidir
+      // qué Historia sale primero cuando hay varias "ahora" en simultáneo.
+      for (const archivo of input.archivos) {
+        ids.push(await crearPublicacionSimple(cuenta, archivo.driveFileId, archivo.resourceKey, conToken, idea.id));
+      }
     }
+  } catch (error) {
+    // Sin ninguna Publicación creada la Idea quedaría huérfana y sin fecha.
+    if (ids.length === 0) await prisma.idea.delete({ where: { id: idea.id } }).catch(() => {});
+    throw error;
   }
+
+  // "Ahora" también queda con fecha (la de creación) para que se vea en el calendario.
+  await prisma.idea.update({
+    where: { id: idea.id },
+    data: { programadaPara: input.programadaPara ?? new Date() },
+  });
 
   await tick();
 
   const publicaciones = await prisma.publicacion.findMany({ where: { id: { in: ids } } });
   const porId = new Map(publicaciones.map((p) => [p.id, p]));
-  revalidatePath("/publicar");
+  revalidarPublicaciones();
   return ids.map((id) => {
     const publicacion = porId.get(id)!;
     return { estado: publicacion.estado, error: publicacion.error ?? undefined };
   });
+}
+
+function revalidarPublicaciones() {
+  revalidatePath("/publicar");
+  revalidatePath("/ideas");
+  revalidatePath("/ideas/calendario");
+  revalidatePath("/ideas/[id]", "page");
 }
 
 export interface ArchivoDeLink {
@@ -247,31 +300,5 @@ export async function cancelarPublicacion(id: string): Promise<void> {
   } else if (publicacion.storageUrl && publicacion.driveFileId) {
     await storageClient.borrar(publicacion.driveFileId).catch(() => {});
   }
-  revalidatePath("/publicar");
-}
-
-export interface EditarPublicacionInput {
-  caption: string;
-  /** Nulo = pasa a "ahora" (vence de inmediato). */
-  programadaPara: Date | null;
-}
-
-/**
- * Solo se puede editar mientras siga "pendiente" — no si la cola ya la
- * disparó. El tipo y la Cuenta no son editables: cambiarlos invalidaría el
- * archivo ya preparado en Storage (ver ADR-0009).
- */
-export async function editarPublicacion(id: string, data: EditarPublicacionInput): Promise<void> {
-  const publicacion = await prisma.publicacion.findUnique({ where: { id }, select: { cuentaId: true } });
-  if (!publicacion) throw new Error("Publicación no encontrada.");
-  await asegurarAccesoACuenta(publicacion.cuentaId);
-
-  const { count } = await prisma.publicacion.updateMany({
-    where: { id, estado: EstadoPublicacion.pendiente },
-    data: { caption: data.caption || null, programadaPara: data.programadaPara },
-  });
-  if (count === 0) {
-    throw new Error("La Publicación ya se disparó, no se puede editar.");
-  }
-  revalidatePath("/publicar");
+  revalidarPublicaciones();
 }

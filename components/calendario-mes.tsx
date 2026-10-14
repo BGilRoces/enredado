@@ -135,6 +135,9 @@ export function CalendarioMes({
                     className={`truncate rounded px-1 py-0.5 text-[11px] leading-tight ${claseBadgeEstadoIdea(idea)}`}
                     title={`${idea.titulo} · ${idea.cuentaNombre}`}
                   >
+                    {idea.programadaPara && (
+                      <span className="mr-1 font-medium">{idea.programadaPara.toISOString().slice(11, 16)}</span>
+                    )}
                     {idea.titulo}
                   </a>
                 ))}
