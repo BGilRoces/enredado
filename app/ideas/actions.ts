@@ -47,6 +47,7 @@ export interface CrearIdeaInput {
   guion?: string;
   linkReferencia1?: string;
   linkReferencia2?: string;
+  caption?: string;
 }
 
 export async function crearIdea(input: CrearIdeaInput): Promise<string> {
@@ -64,6 +65,7 @@ export async function crearIdea(input: CrearIdeaInput): Promise<string> {
       guion: input.guion || null,
       linkReferencia1: input.linkReferencia1 || null,
       linkReferencia2: input.linkReferencia2 || null,
+      caption: input.caption || null,
       estado: EstadoIdea.idea,
     },
   });

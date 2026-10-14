@@ -91,4 +91,16 @@ describe("decideAuthRedirect", () => {
 
     expect(result).toEqual({ action: "allow" });
   });
+
+  it("deja pasar el servidor MCP sin sesión: se autentica con su propio token", () => {
+    for (const pathname of ["/api/mcp", "/api/mcp/algun-token"]) {
+      const result = decideAuthRedirect({ hasSession: false, belongsToThisApp: false, pathname });
+      expect(result).toEqual({ action: "allow" });
+    }
+  });
+
+  it("no extiende la excepción del MCP a rutas que sólo empiezan parecido", () => {
+    const result = decideAuthRedirect({ hasSession: false, belongsToThisApp: false, pathname: "/api/mcpx" });
+    expect(result).toEqual({ action: "json-401" });
+  });
 });

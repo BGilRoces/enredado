@@ -1,5 +1,15 @@
 const PUBLIC_ROUTES = new Set(["/login", "/acerca", "/privacidad", "/terminos"]);
 
+/**
+ * Rutas que se autentican por su cuenta (no con la sesión de Supabase): el
+ * servidor MCP valida su propio token (ver ADR-0017, lib/mcp/http.ts).
+ */
+const SELF_AUTHENTICATED_PREFIXES = ["/api/mcp"];
+
+export function isSelfAuthenticated(pathname: string): boolean {
+  return SELF_AUTHENTICATED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
+
 export type AuthDecision =
   | { action: "allow" }
   | { action: "redirect"; to: string }
@@ -22,7 +32,7 @@ export function decideAuthRedirect({
   pathname,
 }: DecideAuthRedirectInput): AuthDecision {
   const isAuthorized = hasSession && belongsToThisApp;
-  const isPublicRoute = PUBLIC_ROUTES.has(pathname);
+  const isPublicRoute = PUBLIC_ROUTES.has(pathname) || isSelfAuthenticated(pathname);
 
   if (!isAuthorized && !isPublicRoute) {
     return pathname.startsWith("/api/")
