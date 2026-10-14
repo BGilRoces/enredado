@@ -99,6 +99,36 @@ function clasificar(file: DriveApiFile): Item | null {
   return null;
 }
 
+/** Resultado de la búsqueda global: el item más el camino de carpetas que lo contiene. */
+interface ResultadoBusqueda {
+  item: Item;
+  /** Carpetas desde la de más arriba hasta la que lo contiene, sin incluir "Mi unidad". */
+  ruta: Nivel[];
+  origen: "miUnidad" | "compartido";
+}
+
+interface InfoAncestro {
+  id: string;
+  nombre: string;
+  parentId?: string;
+}
+
+const MIN_CARACTERES_BUSQUEDA = 2;
+const MAX_NIVELES_RUTA = 12;
+
+function construirQueryBusqueda(texto: string): string {
+  const mimeTypes = [FOLDER_MIME_TYPE, SHORTCUT_MIME_TYPE, ...MIME_TYPES_ACEPTADOS]
+    .map((m) => `mimeType = '${m}'`)
+    .join(" or ");
+  const escapado = texto.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  return `name contains '${escapado}' and trashed = false and (${mimeTypes})`;
+}
+
+function textoRuta(resultado: ResultadoBusqueda): string {
+  const raiz = resultado.origen === "miUnidad" ? "Mi unidad" : "Compartido conmigo";
+  return [raiz, ...resultado.ruta.map((n) => n.nombre)].join(" / ");
+}
+
 function construirQuery(folderId: string): string {
   const mimeTypes = [FOLDER_MIME_TYPE, SHORTCUT_MIME_TYPE, ...MIME_TYPES_ACEPTADOS]
     .map((m) => `mimeType = '${m}'`)
@@ -107,14 +137,21 @@ function construirQuery(folderId: string): string {
   return `${base} and trashed = false and (${mimeTypes})`;
 }
 
+export interface CarpetaElegida {
+  id: string;
+  nombre: string;
+}
+
 interface Props {
   accessToken: string;
   multiple: boolean;
   onConfirm: (archivos: ArchivoElegido[]) => void;
+  /** Si se pasa, aparece "Usar esta carpeta" al navegar dentro de una carpeta real (ej. Ideas, ver ADR-0016). */
+  onConfirmCarpeta?: (carpeta: CarpetaElegida) => void;
   onClose: () => void;
 }
 
-export function DrivePickerMobile({ accessToken, multiple, onConfirm, onClose }: Props) {
+export function DrivePickerMobile({ accessToken, multiple, onConfirm, onConfirmCarpeta, onClose }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   // Vacío = pantalla raíz (elegir "Mi unidad" o "Compartido conmigo").
   const [pila, setPila] = useState<Nivel[]>([]);
@@ -127,15 +164,33 @@ export function DrivePickerMobile({ accessToken, multiple, onConfirm, onClose }:
   // que al confirmar la selección y cerrarse este modal se revoquen las
   // miniaturas de los archivos recién elegidos.
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
+  const [busqueda, setBusqueda] = useState("");
+  const [resultados, setResultados] = useState<ResultadoBusqueda[]>([]);
+  const [cargandoBusqueda, setCargandoBusqueda] = useState(false);
+  const [errorBusqueda, setErrorBusqueda] = useState<string | null>(null);
+  const [nextPageBusqueda, setNextPageBusqueda] = useState<string | null>(null);
+  // Descarta respuestas de búsquedas viejas si el usuario siguió tipeando.
+  const busquedaIdRef = useRef(0);
+  // Cachean promesas (no valores) para que varios resultados con el mismo
+  // ancestro compartan un único pedido a Drive.
+  const ancestrosRef = useRef(new Map<string, Promise<InfoAncestro | null>>());
+  const raizIdRef = useRef<Promise<string | null> | null>(null);
+
+  const buscando = busqueda.trim().length >= MIN_CARACTERES_BUSQUEDA;
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
-    dialog.showModal();
-    return () => dialog.close();
+    // Sin cleanup con dialog.close() a propósito: en dev, React monta/desmonta/
+    // monta el efecto (StrictMode) y close() dispara `onClose` (asíncrono), que
+    // cerraba el picker apenas se abría. Al desmontarse, el <dialog> sale del
+    // DOM y con eso también del top layer, no hace falta cerrarlo a mano.
+    if (!dialog.open) dialog.showModal();
   }, []);
 
   const carpetaActual = pila.at(-1)?.id ?? null;
+  // "root" (Mi unidad) y "sharedWithMe" son pseudo-carpetas: no tienen link de carpeta propio.
+  const carpetaElegible = pila.length > 1 || (pila.length === 1 && pila[0].id !== "root" && pila[0].id !== RAIZ_COMPARTIDOS);
 
   async function fetchCarpeta(folderId: string, pageToken?: string) {
     setCargando(true);
@@ -188,6 +243,123 @@ export function DrivePickerMobile({ accessToken, multiple, onConfirm, onClose }:
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- solo depende de los items de la página actual.
   }, [items]);
+
+  async function pedirDrive(ruta: string, params: Record<string, string>): Promise<Response> {
+    const url = `https://www.googleapis.com/drive/v3/${ruta}?${new URLSearchParams({ supportsAllDrives: "true", ...params })}`;
+    return fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  }
+
+  function obtenerRaizId(): Promise<string | null> {
+    raizIdRef.current ??= pedirDrive("files/root", { fields: "id" })
+      .then((res) => (res.ok ? res.json().then((d: { id: string }) => d.id) : null))
+      .catch(() => null);
+    return raizIdRef.current;
+  }
+
+  function obtenerAncestro(id: string): Promise<InfoAncestro | null> {
+    let promesa = ancestrosRef.current.get(id);
+    if (!promesa) {
+      promesa = pedirDrive(`files/${id}`, { fields: "id,name,parents" })
+        .then(async (res) => {
+          if (!res.ok) return null;
+          const d = (await res.json()) as { id: string; name: string; parents?: string[] };
+          return { id: d.id, nombre: d.name, parentId: d.parents?.[0] };
+        })
+        .catch(() => null);
+      ancestrosRef.current.set(id, promesa);
+    }
+    return promesa;
+  }
+
+  /**
+   * Drive sólo devuelve el id del padre de cada archivo, no el camino: hay que
+   * subir de a un nivel hasta "Mi unidad". Si el camino se corta antes (algo
+   * compartido cuyo padre no es accesible), se muestra desde "Compartido conmigo".
+   */
+  async function resolverRuta(parentId: string | undefined): Promise<Pick<ResultadoBusqueda, "ruta" | "origen">> {
+    const raizId = await obtenerRaizId();
+    const ruta: Nivel[] = [];
+    let actual = parentId;
+    for (let i = 0; actual && i < MAX_NIVELES_RUTA; i++) {
+      if (actual === raizId) return { ruta, origen: "miUnidad" };
+      const info = await obtenerAncestro(actual);
+      if (!info) break;
+      ruta.unshift({ id: info.id, nombre: info.nombre });
+      actual = info.parentId;
+    }
+    return { ruta, origen: "compartido" };
+  }
+
+  async function buscar(texto: string, pageToken?: string) {
+    const id = ++busquedaIdRef.current;
+    setCargandoBusqueda(true);
+    setErrorBusqueda(null);
+    try {
+      const params: Record<string, string> = {
+        q: construirQueryBusqueda(texto),
+        fields: "files(id,name,mimeType,resourceKey,shortcutDetails,parents),nextPageToken",
+        pageSize: "24",
+        includeItemsFromAllDrives: "true",
+        orderBy: "folder,name",
+      };
+      if (pageToken) params.pageToken = pageToken;
+      const res = await pedirDrive("files", params);
+      if (!res.ok) {
+        const cuerpo = await res.json().catch(() => null);
+        throw new Error(cuerpo?.error?.message ?? `Google Drive respondió ${res.status}.`);
+      }
+      const data = (await res.json()) as { files: (DriveApiFile & { parents?: string[] })[]; nextPageToken?: string };
+      const encontrados = await Promise.all(
+        data.files.map(async (file) => {
+          const item = clasificar(file);
+          return item ? { item, ...(await resolverRuta(file.parents?.[0])) } : null;
+        })
+      );
+      if (id !== busquedaIdRef.current) return;
+      const nuevos = encontrados.filter((r): r is ResultadoBusqueda => r !== null);
+      setResultados((actuales) => (pageToken ? [...actuales, ...nuevos] : nuevos));
+      setNextPageBusqueda(data.nextPageToken ?? null);
+    } catch (err) {
+      if (id !== busquedaIdRef.current) return;
+      setErrorBusqueda(err instanceof Error ? err.message : String(err));
+    } finally {
+      if (id === busquedaIdRef.current) setCargandoBusqueda(false);
+    }
+  }
+
+  function cambiarBusqueda(valor: string) {
+    setBusqueda(valor);
+    if (valor.trim().length < MIN_CARACTERES_BUSQUEDA) {
+      busquedaIdRef.current++;
+      setResultados([]);
+      setNextPageBusqueda(null);
+      setErrorBusqueda(null);
+      setCargandoBusqueda(false);
+    } else {
+      setCargandoBusqueda(true);
+    }
+  }
+
+  // Debounce: no pega a Drive en cada tecla.
+  useEffect(() => {
+    const texto = busqueda.trim();
+    if (texto.length < MIN_CARACTERES_BUSQUEDA) return;
+    const timeout = setTimeout(() => buscar(texto), 400);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sólo debe re-correr al cambiar el texto.
+  }, [busqueda]);
+
+  /** Sale de la búsqueda y abre esa carpeta con su camino completo en el breadcrumb. */
+  function abrirCarpetaDeResultado(resultado: ResultadoBusqueda, carpeta: ItemCarpeta) {
+    const raiz: Nivel =
+      resultado.origen === "miUnidad"
+        ? { id: "root", nombre: "Mi unidad" }
+        : { id: RAIZ_COMPARTIDOS, nombre: "Compartido conmigo" };
+    cambiarBusqueda("");
+    setItems([]);
+    setPila([raiz, ...resultado.ruta, { id: carpeta.idParaNavegar, nombre: carpeta.nombre }]);
+    fetchCarpeta(carpeta.idParaNavegar);
+  }
 
   function abrirRaiz(id: string, nombre: string) {
     setItems([]);
@@ -281,8 +453,77 @@ export function DrivePickerMobile({ accessToken, multiple, onConfirm, onClose }:
           </div>
         </div>
 
+        <div className="border-b border-zinc-200 p-3">
+          <input
+            type="search"
+            value={busqueda}
+            onChange={(e) => cambiarBusqueda(e.target.value)}
+            placeholder="Buscar en todo Drive…"
+            className="w-full rounded-lg border border-zinc-300 p-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+          />
+        </div>
+
         <div className="flex-1 overflow-y-auto p-3">
-          {pila.length === 0 && (
+          {buscando && (
+            <>
+              {errorBusqueda && <p className="mb-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{errorBusqueda}</p>}
+
+              {resultados.length > 0 && (
+                <ul className="flex flex-col gap-1">
+                  {resultados.map((resultado) => {
+                    const { item } = resultado;
+                    const esCarpeta = item.tipo === "carpeta";
+                    const marcado = item.tipo === "archivo" && seleccion.has(item.id);
+                    return (
+                      <li key={esCarpeta ? item.idParaNavegar : item.id}>
+                        <button
+                          type="button"
+                          onClick={() => (esCarpeta ? abrirCarpetaDeResultado(resultado, item) : tocarArchivo(item))}
+                          className={`flex w-full min-h-[44px] items-center gap-2 rounded-lg border px-3 py-2 text-left hover:bg-zinc-50 ${
+                            marcado ? "border-indigo-600" : "border-zinc-200"
+                          }`}
+                        >
+                          <span aria-hidden="true">{esCarpeta ? "📁" : item.mimeType.startsWith("video/") ? "🎞️" : "🖼️"}</span>
+                          <span className="flex min-w-0 flex-1 flex-col">
+                            <span className="truncate text-sm text-zinc-900">{item.nombre}</span>
+                            <span className="truncate text-xs text-zinc-500">{textoRuta(resultado)}</span>
+                          </span>
+                          {multiple && !esCarpeta && (
+                            <span
+                              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                                marcado ? "bg-indigo-600 text-white" : "bg-zinc-100 text-zinc-400"
+                              }`}
+                              aria-hidden="true"
+                            >
+                              {marcado ? "✓" : ""}
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
+              {!cargandoBusqueda && resultados.length === 0 && !errorBusqueda && (
+                <p className="p-4 text-center text-sm text-zinc-500">Sin resultados.</p>
+              )}
+
+              {cargandoBusqueda && <p className="p-4 text-center text-sm text-zinc-500">Buscando…</p>}
+
+              {nextPageBusqueda && !cargandoBusqueda && (
+                <button
+                  type="button"
+                  onClick={() => buscar(busqueda.trim(), nextPageBusqueda)}
+                  className="mt-2 w-full rounded-lg border border-zinc-200 p-2 text-sm text-indigo-600 hover:bg-indigo-50"
+                >
+                  Cargar más
+                </button>
+              )}
+            </>
+          )}
+
+          {!buscando && pila.length === 0 && (
             <div className="flex flex-col gap-2">
               <button
                 type="button"
@@ -301,7 +542,7 @@ export function DrivePickerMobile({ accessToken, multiple, onConfirm, onClose }:
             </div>
           )}
 
-          {pila.length > 0 && (
+          {!buscando && pila.length > 0 && (
             <>
               {error && <p className="mb-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
 
@@ -377,6 +618,19 @@ export function DrivePickerMobile({ accessToken, multiple, onConfirm, onClose }:
             </>
           )}
         </div>
+
+        {onConfirmCarpeta && carpetaElegible && !buscando && (
+          <div className="flex items-center justify-between gap-3 border-t border-zinc-200 bg-white p-3">
+            <span className="truncate text-sm text-zinc-600">📁 {pila.at(-1)?.nombre}</span>
+            <button
+              type="button"
+              onClick={() => onConfirmCarpeta({ id: pila.at(-1)!.id, nombre: pila.at(-1)!.nombre })}
+              className="shrink-0 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+            >
+              Usar esta carpeta
+            </button>
+          </div>
+        )}
 
         {multiple && seleccion.size > 0 && (
           <div className="flex items-center justify-between gap-3 border-t border-zinc-200 bg-white p-3">

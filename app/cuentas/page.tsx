@@ -5,6 +5,7 @@ import { desconectarCuenta } from "./actions";
 import { LIMITE_PUBLICACIONES_POR_VENTANA, VENTANA_LIMITE_MS } from "@/lib/limite-diario/excedio-limite-diario";
 import { AppShell } from "@/components/app-shell";
 import { EliminarCuentaBoton } from "@/components/eliminar-cuenta-boton";
+import { SubmitButton } from "@/components/submit-button";
 
 const ETIQUETA_ESTADO_CUENTA: Record<EstadoCuenta, string> = {
   conectada: "Conectada",
@@ -126,12 +127,12 @@ export default async function CuentasPage({
                     await desconectarCuenta(cuenta.id);
                   }}
                 >
-                  <button
-                    type="submit"
+                  <SubmitButton
+                    pendingText="Desconectando…"
                     className="rounded-lg border border-rose-200 px-3 py-1.5 text-sm text-rose-700 transition-colors hover:bg-rose-50"
                   >
                     Desconectar
-                  </button>
+                  </SubmitButton>
                 </form>
               )}
               {cuenta.estado === EstadoCuenta.necesitaReconexion && (

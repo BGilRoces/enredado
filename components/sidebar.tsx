@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { cerrarSesion } from "@/lib/auth/actions";
+import { SubmitButton } from "@/components/submit-button";
 
 export type Seccion = "inicio" | "cuentas" | "publicar" | "historial" | "ideas" | "calendario" | "configuracion";
 
@@ -73,8 +74,7 @@ export function Sidebar({ active, email }: { active: Seccion; email: string | nu
           </p>
         )}
         <form action={cerrarSesion}>
-          <button
-            type="submit"
+          <SubmitButton
             title={colapsado ? "Cerrar sesión" : undefined}
             className={
               "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 " +
@@ -83,7 +83,7 @@ export function Sidebar({ active, email }: { active: Seccion; email: string | nu
           >
             <IconCerrarSesion className="h-5 w-5 shrink-0" />
             {!colapsado && "Cerrar sesión"}
-          </button>
+          </SubmitButton>
         </form>
       </div>
     </aside>

@@ -5,6 +5,7 @@ import { obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
 import { mensajeDeError } from "@/lib/mensaje-de-error";
 import { crearIdea } from "../actions";
 import { AppShell } from "@/components/app-shell";
+import { SubmitButton } from "@/components/submit-button";
 
 export const dynamic = "force-dynamic";
 
@@ -34,9 +35,8 @@ export default async function NuevaIdeaPage({
     // El redirect de éxito queda fuera del try/catch a propósito (ver
     // app/ideas/[id]/page.tsx): redirect() tira una excepción especial que
     // un catch genérico atraparía como si fuera un error real.
-    let id: string;
     try {
-      id = await crearIdea({
+      await crearIdea({
         cuentaId: String(formData.get("cuentaId") ?? ""),
         titulo: String(formData.get("titulo") ?? ""),
         tipo: String(formData.get("tipo") ?? "post") as TipoPublicacion,
@@ -48,7 +48,7 @@ export default async function NuevaIdeaPage({
     } catch (err) {
       redirect(`/ideas/nueva?error=${encodeURIComponent(mensajeDeError(err))}`);
     }
-    redirect(`/ideas/${id}`);
+    redirect("/ideas");
   }
 
   return (
@@ -94,12 +94,12 @@ export default async function NuevaIdeaPage({
           <textarea name="guion" placeholder="Guión (opcional)" rows={5} className={INPUT_CLASS} />
           <input name="linkReferencia1" placeholder="Link de referencia 1 (opcional)" className={INPUT_CLASS} />
           <input name="linkReferencia2" placeholder="Link de referencia 2 (opcional)" className={INPUT_CLASS} />
-          <button
-            type="submit"
+          <SubmitButton
+            pendingText="Guardando…"
             className="self-start rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800"
           >
             Guardar idea
-          </button>
+          </SubmitButton>
         </form>
       )}
     </AppShell>

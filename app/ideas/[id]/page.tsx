@@ -8,6 +8,8 @@ import { claseBadgeEstadoIdea, etiquetaEstadoIdea } from "@/components/etiqueta-
 import { claseBadgeEstado, etiquetaEstado } from "@/components/etiqueta-estado";
 import { AppShell } from "@/components/app-shell";
 import { CarpetaIdeaArchivos } from "@/components/carpeta-idea-archivos";
+import { DriveLinkIdeaInput } from "@/components/drive-link-idea-input";
+import { SubmitButton } from "@/components/submit-button";
 import {
   actualizarIdea,
   calendarizarIdea,
@@ -81,16 +83,22 @@ export default async function IdeaPage({
 
   async function guardar(formData: FormData) {
     "use server";
-    await conManejoDeError(id, () =>
-      actualizarIdea(id, {
+    // El redirect de éxito queda fuera del try/catch a propósito (ver borrar
+    // más abajo): redirect() tira una excepción especial que un catch
+    // genérico atraparía como si fuera un error real.
+    try {
+      await actualizarIdea(id, {
         titulo: String(formData.get("titulo") ?? ""),
         descripcion: String(formData.get("descripcion") ?? ""),
         guion: String(formData.get("guion") ?? ""),
         linkReferencia1: String(formData.get("linkReferencia1") ?? ""),
         linkReferencia2: String(formData.get("linkReferencia2") ?? ""),
         caption: String(formData.get("caption") ?? ""),
-      })
-    );
+      });
+    } catch (err) {
+      redirect(`/ideas/${id}?error=${encodeURIComponent(mensajeDeError(err))}`);
+    }
+    redirect("/ideas");
   }
 
   async function guardarDrive(formData: FormData) {
@@ -175,8 +183,7 @@ export default async function IdeaPage({
                   await conManejoDeError(id, () => cambiarEstadoIdea(id, estado));
                 }}
               >
-                <button
-                  type="submit"
+                <SubmitButton
                   disabled={idea.estado === estado}
                   className={
                     idea.estado === estado
@@ -185,7 +192,7 @@ export default async function IdeaPage({
                   }
                 >
                   {ETIQUETA_ESTADO_MANUAL[estado]}
-                </button>
+                </SubmitButton>
               </form>
             ))}
           </div>
@@ -199,19 +206,17 @@ export default async function IdeaPage({
                   ? "El link de un archivo puntual, o el de una carpeta entera para armar un carousel (hasta 10 elementos, orden elegible abajo)."
                   : "El link de un archivo puntual, o el de una carpeta entera para subir varias Historias seguidas (orden elegible abajo)."}
             </p>
-            <div className="flex gap-2">
-              <input
-                name="driveLink"
+            <div className="flex flex-wrap gap-2">
+              <DriveLinkIdeaInput
                 defaultValue={idea.driveLink ?? ""}
-                placeholder="https://drive.google.com/file/d/... o /drive/folders/..."
-                className={`${INPUT_CLASS} flex-1`}
+                permitirCarpeta={idea.tipo !== TipoPublicacion.reel}
               />
-              <button
-                type="submit"
+              <SubmitButton
+                pendingText="Guardando…"
                 className="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-zinc-50"
               >
                 Guardar
-              </button>
+              </SubmitButton>
             </div>
           </form>
 
@@ -236,12 +241,12 @@ export default async function IdeaPage({
               : 'Recordatorio no más: recién dispara si para esa hora ya está "en Drive".'}{" "}
             Dejá vacío y guardá para descalendarizar.
           </span>
-          <button
-            type="submit"
+          <SubmitButton
+            pendingText="Guardando…"
             className="self-start rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-zinc-50"
           >
             Guardar fecha
-          </button>
+          </SubmitButton>
         </form>
       </div>
 
@@ -272,21 +277,21 @@ export default async function IdeaPage({
           Caption (lo que sale de verdad en el post)
         </label>
         <textarea name="caption" defaultValue={idea.caption ?? ""} rows={2} className={INPUT_CLASS} />
-        <button
-          type="submit"
+        <SubmitButton
+          pendingText="Guardando…"
           className="self-start rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800"
         >
           Guardar cambios
-        </button>
+        </SubmitButton>
       </form>
 
       <form action={borrar}>
-        <button
-          type="submit"
+        <SubmitButton
+          pendingText="Eliminando…"
           className="rounded-lg border border-rose-200 px-3 py-1.5 text-sm text-rose-700 transition-colors hover:bg-rose-50"
         >
           Eliminar idea
-        </button>
+        </SubmitButton>
       </form>
     </AppShell>
   );

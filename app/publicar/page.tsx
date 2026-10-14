@@ -8,6 +8,7 @@ import { parsearSeleccionMultiple } from "@/lib/parsear-seleccion-multiple";
 import { PublicacionResumen } from "@/components/publicacion-resumen";
 import { PublicacionFilaExpandible } from "@/components/publicacion-fila-expandible";
 import { AppShell } from "@/components/app-shell";
+import { SubmitButton } from "@/components/submit-button";
 
 // Sin esto, Next intenta prerenderizar la página en build time (no hay
 // DATABASE_URL disponible ahí) — la lista de Cuentas/Publicaciones necesita
@@ -145,12 +146,12 @@ export default async function PublicarPage({
                       <span className="text-xs text-zinc-500">
                         Hora UTC. Dejá el campo vacío para pasar a &quot;ahora&quot;.
                       </span>
-                      <button
-                        type="submit"
+                      <SubmitButton
+                        pendingText="Guardando…"
                         className="self-start rounded-lg border border-zinc-300 px-2 py-1 text-xs font-medium transition-colors hover:bg-zinc-50"
                       >
                         Guardar cambios
-                      </button>
+                      </SubmitButton>
                     </form>
                     <form
                       action={async () => {
@@ -158,12 +159,12 @@ export default async function PublicarPage({
                         await cancelarPublicacion(publicacion.id);
                       }}
                     >
-                      <button
-                        type="submit"
+                      <SubmitButton
+                        pendingText="Cancelando…"
                         className="rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-700 transition-colors hover:bg-rose-50"
                       >
                         Cancelar
-                      </button>
+                      </SubmitButton>
                     </form>
                   </>
                 )}

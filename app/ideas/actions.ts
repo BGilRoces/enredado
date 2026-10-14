@@ -17,6 +17,9 @@ type IdeaConPublicaciones = Idea & { publicaciones: Pick<Publicacion, "id" | "es
 function revalidarIdeas() {
   revalidatePath("/ideas");
   revalidatePath("/ideas/calendario");
+  // Sin esto, una acción disparada desde /ideas/[id] guardaba en la base pero
+  // la página no se volvía a renderizar: parecía que no pasaba nada.
+  revalidatePath("/ideas/[id]", "page");
 }
 
 async function obtenerIdeaOTirar(id: string): Promise<IdeaConPublicaciones> {

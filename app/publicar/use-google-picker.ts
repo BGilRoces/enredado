@@ -142,6 +142,14 @@ export function useGooglePicker() {
     setAccessTokenPickerMobile(null);
   }
 
+  /** Sólo para quien pasa `onConfirmCarpeta` al picker (Ideas): elegir una carpeta entera vacía la selección de archivos; quien llama guarda la carpeta. */
+  function confirmarCarpetaMobile() {
+    setArchivos([]);
+    setError(null);
+    setPickerMobileAbierto(false);
+    setAccessTokenPickerMobile(null);
+  }
+
   function cerrarPickerMobile() {
     setPickerMobileAbierto(false);
     setAccessTokenPickerMobile(null);
@@ -158,6 +166,7 @@ export function useGooglePicker() {
     pickerMobileAbierto,
     accessTokenPickerMobile,
     confirmarSeleccionMobile,
+    confirmarCarpetaMobile,
     cerrarPickerMobile,
   };
 }

@@ -4,6 +4,7 @@ import { mesEnGrilla } from "@/lib/calendario/mes-en-grilla";
 import { FiltroCheckboxes } from "@/components/filtro-checkboxes";
 import { parsearSeleccionMultiple } from "@/lib/parsear-seleccion-multiple";
 import { CalendarioMes, type IdeaEnCalendario } from "@/components/calendario-mes";
+import { IdeasPendientesLista } from "@/components/ideas-pendientes-lista";
 import { AppShell } from "@/components/app-shell";
 import { SelectorMes } from "@/components/selector-mes";
 
@@ -65,27 +66,52 @@ export default async function CalendarioPage({
     include: { cuenta: true, publicaciones: { select: { estado: true, programadaPara: true } } },
   });
 
-  const ideasPorDia = new Map<string, IdeaEnCalendario[]>();
+  const ideasPorDia: Record<string, IdeaEnCalendario[]> = {};
   for (const idea of ideas) {
     const clave = claveDia(idea.programadaPara!);
-    const lista = ideasPorDia.get(clave) ?? [];
+    const lista = ideasPorDia[clave] ?? [];
     lista.push({
       id: idea.id,
       titulo: idea.titulo,
       cuentaNombre: idea.cuenta.nombre,
+      tipo: idea.tipo,
       estado: idea.estado,
       programadaPara: idea.programadaPara,
       publicaciones: idea.publicaciones,
     });
-    ideasPorDia.set(clave, lista);
+    ideasPorDia[clave] = lista;
   }
+
+  // Lista de la izquierda: ideas todavía sin fecha, para arrastrar a un día.
+  const ideasPendientes = await prisma.idea.findMany({
+    where: {
+      programadaPara: null,
+      ...(cuentaIdPermitida
+        ? { cuentaId: cuentaIdPermitida }
+        : cuentasFiltro
+          ? { cuentaId: { in: cuentasFiltro } }
+          : {}),
+    },
+    orderBy: { creadaEn: "desc" },
+    include: { cuenta: true, publicaciones: { select: { estado: true, programadaPara: true } } },
+  });
+
+  const ideasPendientesEnCalendario: IdeaEnCalendario[] = ideasPendientes.map((idea) => ({
+    id: idea.id,
+    titulo: idea.titulo,
+    cuentaNombre: idea.cuenta.nombre,
+    tipo: idea.tipo,
+    estado: idea.estado,
+    programadaPara: idea.programadaPara,
+    publicaciones: idea.publicaciones,
+  }));
 
   const anterior = mesSiguiente(anio, mes, -1);
   const siguiente = mesSiguiente(anio, mes, 1);
   const queryCuenta = cuentasFiltro !== null ? `&cuentaId=${encodeURIComponent(cuentasFiltro.join(","))}` : "";
 
   return (
-    <AppShell active="calendario">
+    <AppShell active="calendario" ancho="completo">
       <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Calendario</h1>
 
       <div className="flex items-center justify-between">
@@ -114,7 +140,14 @@ export default async function CalendarioPage({
         />
       </div>
 
-      <CalendarioMes dias={dias} ideasPorDia={ideasPorDia} hoyClave={claveDia(new Date())} />
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+        <div className="w-full shrink-0 lg:w-64">
+          <IdeasPendientesLista ideas={ideasPendientesEnCalendario} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <CalendarioMes dias={dias} ideasPorDia={ideasPorDia} hoyClave={claveDia(new Date())} />
+        </div>
+      </div>
     </AppShell>
   );
 }
