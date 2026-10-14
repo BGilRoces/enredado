@@ -21,6 +21,16 @@ describe("esAtrasada", () => {
     ).toBe(true);
   });
 
+  it("enDrive con la hora caducada (no se promovió a tiempo): atrasada", () => {
+    expect(
+      esAtrasada(AHORA, {
+        estado: EstadoIdea.enDrive,
+        programadaPara: new Date("2026-09-17T08:00:00Z"),
+        yaPromocionada: false,
+      })
+    ).toBe(true);
+  });
+
   it("programada para el pasado, pero enDrive: no atrasada (ya elegible para promoverse)", () => {
     expect(
       esAtrasada(AHORA, {

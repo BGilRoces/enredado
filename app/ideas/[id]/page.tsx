@@ -144,8 +144,9 @@ export default async function IdeaPage({
       )}
       {atrasada && (
         <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">
-          Atrasada: la hora programada ya pasó y esta idea todavía no está &quot;en Drive&quot;, así que no se
-          publicó sola.
+          {idea.estado === "enDrive"
+            ? "Atrasada: la hora programada pasó hace más de 2 horas y no se publicó, así que se descartó la publicación automática. Reprogramala para que salga."
+            : "Atrasada: la hora programada ya pasó y esta idea todavía no está \"en Drive\", así que no se publicó sola."}
         </p>
       )}
 

@@ -8,6 +8,7 @@ import {
 import { prisma } from "@/lib/db/prisma";
 import { decryptToken } from "@/lib/crypto/token-cipher";
 import { decidirVencidas } from "@/lib/scheduler/decidir-vencidas";
+import { estaCaducada } from "@/lib/scheduler/caducadas";
 import { decidirSiguiente } from "@/lib/cola/decidir-siguiente";
 import { excedioLimiteDiario, LIMITE_PUBLICACIONES_POR_VENTANA } from "@/lib/limite-diario/excedio-limite-diario";
 import { publicarDesdeStorage } from "@/lib/publicador/publicar-desde-storage";
@@ -176,6 +177,30 @@ async function publicarUna(
   });
 }
 
+const ERROR_CADUCADA =
+  "No se publicó: la hora programada pasó hace más de 2 horas (la app no estaba disponible o la cola estaba saturada). Se descartó para no publicar contenido desactualizado — reprogramala si todavía querés publicarla.";
+
+/**
+ * Descarta las Publicaciones pendientes cuya hora caducó (ver ADR-0018): las
+ * deja `fallida` con una razón visible en vez de publicarlas tarde. El
+ * `updateMany` guardado por `pendiente` evita pisar una que justo se canceló.
+ */
+async function descartarCaducadas(ids: string[]): Promise<void> {
+  const publicaciones = await prisma.publicacion.findMany({
+    where: { id: { in: ids }, estado: EstadoPublicacion.pendiente },
+    include: { archivos: true },
+  });
+  await prisma.publicacion.updateMany({
+    where: { id: { in: ids }, estado: EstadoPublicacion.pendiente },
+    data: { estado: EstadoPublicacion.fallida, error: ERROR_CADUCADA },
+  });
+  // Mismo criterio que cancelarPublicacion: si el archivo ya estaba preparado en Storage, liberarlo.
+  const aBorrar = publicaciones.flatMap((p) =>
+    p.archivos.length > 0 ? p.archivos.map((a) => a.driveFileId) : p.storageUrl && p.driveFileId ? [p.driveFileId] : []
+  );
+  await Promise.all(aBorrar.map((driveFileId) => storageClient.borrar(driveFileId).catch(() => {})));
+}
+
 /**
  * Procesa, de a una, todas las Publicaciones "pendiente" que ya vencieron
  * (ADR-0004/0005). Reentrante-seguro: si ya hay un tick corriendo, un
@@ -197,7 +222,12 @@ export async function tick(): Promise<void> {
         select: { id: true, programadaPara: true },
       });
 
-      const vencidas = decidirVencidas(new Date(), candidatas);
+      const ahora = new Date();
+      const caducadas = candidatas.filter((c) => estaCaducada(ahora, c.programadaPara)).map((c) => c.id);
+      if (caducadas.length > 0) await descartarCaducadas(caducadas);
+
+      const vigentes = candidatas.filter((c) => !caducadas.includes(c.id));
+      const vencidas = decidirVencidas(ahora, vigentes);
       const siguienteId = decidirSiguiente(enCurso > 0, vencidas);
       if (!siguienteId) return;
 

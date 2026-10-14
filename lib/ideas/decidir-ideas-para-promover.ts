@@ -1,4 +1,5 @@
 import { EstadoIdea } from "@prisma/client";
+import { estaCaducada } from "@/lib/scheduler/caducadas";
 
 export interface IdeaPromovible {
   id: string;
@@ -18,6 +19,9 @@ export interface IdeaPromovible {
  * carpeta) resuelto, y la hora ya cumplida. Una Idea sin `programadaPara`
  * nunca se promueve sola (no hay "ahora" implícito para una Idea, a
  * diferencia de una Publicación creada desde /publicar — ver decidir-vencidas.ts).
+ * Tampoco se promueve una Idea cuya hora ya caducó (ver ADR-0018): si el
+ * panel no la publicó a tiempo, hay que reprogramarla a propósito en vez de
+ * que salga sola, tarde.
  */
 export function decidirIdeasParaPromover(ahora: Date, candidatas: IdeaPromovible[]): string[] {
   return candidatas
@@ -27,7 +31,8 @@ export function decidirIdeasParaPromover(ahora: Date, candidatas: IdeaPromovible
         idea.estado === EstadoIdea.enDrive &&
         (idea.driveFileId !== null || idea.tieneArchivos) &&
         idea.programadaPara !== null &&
-        idea.programadaPara <= ahora
+        idea.programadaPara <= ahora &&
+        !estaCaducada(ahora, idea.programadaPara)
     )
     .map((idea) => idea.id);
 }

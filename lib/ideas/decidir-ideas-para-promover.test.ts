@@ -52,4 +52,10 @@ describe("decidirIdeasParaPromover", () => {
   it("lista vacía no rompe", () => {
     expect(decidirIdeasParaPromover(AHORA, [])).toEqual([]);
   });
+
+  it("hora caducada (pasó la ventana de gracia, ver ADR-0018): no se promueve sola", () => {
+    expect(
+      decidirIdeasParaPromover(AHORA, [idea({ programadaPara: new Date("2026-09-17T09:00:00Z") })])
+    ).toEqual([]);
+  });
 });
