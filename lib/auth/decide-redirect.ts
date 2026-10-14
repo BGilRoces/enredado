@@ -1,4 +1,4 @@
-const PUBLIC_ROUTES = new Set(["/login"]);
+const PUBLIC_ROUTES = new Set(["/login", "/acerca", "/privacidad", "/terminos"]);
 
 export type AuthDecision =
   | { action: "allow" }
