@@ -7,6 +7,7 @@ import { claseBadgeEstadoIdea } from "./etiqueta-estado-idea";
 import type { IdeaConEstado } from "./etiqueta-estado-idea";
 import { calendarizarIdea } from "@/app/ideas/actions";
 import { mensajeDeError } from "@/lib/mensaje-de-error";
+import { desdeHoraLocal, horaLocal } from "@/lib/zona-horaria";
 
 export interface IdeaEnCalendario extends IdeaConEstado {
   id: string;
@@ -77,7 +78,7 @@ export function CalendarioMes({
     setError(null);
     startTransition(async () => {
       try {
-        await calendarizarIdea(modal.idea.id, new Date(`${modal.clave}T${hora}`));
+        await calendarizarIdea(modal.idea.id, desdeHoraLocal(`${modal.clave}T${hora}`));
         setModal(null);
       } catch (err) {
         setError(mensajeDeError(err));
@@ -136,7 +137,7 @@ export function CalendarioMes({
                     title={`${idea.titulo} · ${idea.cuentaNombre}`}
                   >
                     {idea.programadaPara && (
-                      <span className="mr-1 font-medium">{idea.programadaPara.toISOString().slice(11, 16)}</span>
+                      <span className="mr-1 font-medium">{horaLocal(idea.programadaPara)}</span>
                     )}
                     {idea.titulo}
                   </a>

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
 import { mesEnGrilla } from "@/lib/calendario/mes-en-grilla";
+import { claveDiaLocal, inicioDeDiaLocal } from "@/lib/zona-horaria";
 import { FiltroCheckboxes } from "@/components/filtro-checkboxes";
 import { parsearSeleccionMultiple } from "@/lib/parsear-seleccion-multiple";
 import { CalendarioMes, type IdeaEnCalendario } from "@/components/calendario-mes";
@@ -12,8 +13,10 @@ export const dynamic = "force-dynamic";
 
 function parsearMes(valor: string | undefined): { anio: number; mes: number } {
   const match = valor?.match(/^(\d{4})-(\d{2})$/);
-  const ahora = new Date();
-  if (!match) return { anio: ahora.getUTCFullYear(), mes: ahora.getUTCMonth() + 1 };
+  if (!match) {
+    const [anio, mes] = claveDiaLocal(new Date()).split("-").map(Number);
+    return { anio, mes };
+  }
   return { anio: Number(match[1]), mes: Number(match[2]) };
 }
 
@@ -24,10 +27,6 @@ function mesSiguiente(anio: number, mes: number, delta: number): { anio: number;
 
 function claveMes(anio: number, mes: number): string {
   return `${anio}-${String(mes).padStart(2, "0")}`;
-}
-
-function claveDia(fecha: Date): string {
-  return fecha.toISOString().slice(0, 10);
 }
 
 export default async function CalendarioPage({
@@ -51,8 +50,8 @@ export default async function CalendarioPage({
   );
 
   const dias = mesEnGrilla(anio, mes);
-  const desde = dias[0].fecha;
-  const hasta = new Date(dias[dias.length - 1].fecha.getTime() + 24 * 60 * 60 * 1000);
+  const desde = inicioDeDiaLocal(dias[0].fecha.toISOString().slice(0, 10));
+  const hasta = new Date(inicioDeDiaLocal(dias[dias.length - 1].fecha.toISOString().slice(0, 10)).getTime() + 24 * 60 * 60 * 1000);
 
   const ideas = await prisma.idea.findMany({
     where: {
@@ -68,7 +67,7 @@ export default async function CalendarioPage({
 
   const ideasPorDia: Record<string, IdeaEnCalendario[]> = {};
   for (const idea of ideas) {
-    const clave = claveDia(idea.programadaPara!);
+    const clave = claveDiaLocal(idea.programadaPara!);
     const lista = ideasPorDia[clave] ?? [];
     lista.push({
       id: idea.id,
@@ -147,7 +146,7 @@ export default async function CalendarioPage({
           <IdeasPendientesLista ideas={ideasPendientesEnCalendario} />
         </div>
         <div className="min-w-0 flex-1">
-          <CalendarioMes dias={dias} ideasPorDia={ideasPorDia} hoyClave={claveDia(new Date())} />
+          <CalendarioMes dias={dias} ideasPorDia={ideasPorDia} hoyClave={claveDiaLocal(new Date())} />
         </div>
       </div>
     </AppShell>

@@ -1,6 +1,7 @@
 import { EstadoCuenta, EstadoIdea, EstadoPublicacion } from "@prisma/client";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/db/prisma";
+import { formatearFechaHora } from "@/lib/zona-horaria";
 import { obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
 import { AppShell } from "@/components/app-shell";
 import { PublicacionResumen } from "@/components/publicacion-resumen";
@@ -133,7 +134,7 @@ export default async function DashboardPage() {
                     >
                       <span className="font-medium text-zinc-900">{idea.titulo}</span>
                       <span className="text-xs text-zinc-500">
-                        {idea.cuenta.nombre} · {idea.tipo} · {idea.programadaPara!.toISOString().slice(0, 16).replace("T", " ")} UTC
+                        {idea.cuenta.nombre} · {idea.tipo} · {formatearFechaHora(idea.programadaPara!)}
                         {idea.audio ? ` · Audio: ${idea.audio}` : ""}
                       </span>
                     </a>

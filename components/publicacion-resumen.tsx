@@ -1,4 +1,5 @@
 import type { Cuenta, Publicacion } from "@prisma/client";
+import { formatearFechaHora } from "@/lib/zona-horaria";
 import { claseBadgeEstado, etiquetaEstado } from "./etiqueta-estado";
 
 /** Encabezado (Cuenta · tipo · estado) + motivo de falla, reusado en toda lista de Publicaciones. */
@@ -25,9 +26,9 @@ export function PublicacionResumen({
       </div>
       {mostrarFecha && (
         <p className="text-xs text-zinc-500">
-          {publicacion.creadaEn.toISOString()} UTC
+          {formatearFechaHora(publicacion.creadaEn)}
           {publicacion.programadaPara
-            ? ` · programada para ${publicacion.programadaPara.toISOString()} UTC`
+            ? ` · programada para ${formatearFechaHora(publicacion.programadaPara)}`
             : ""}
         </p>
       )}

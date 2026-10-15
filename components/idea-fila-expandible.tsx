@@ -6,6 +6,7 @@ import { claseBadgeEstadoIdea, etiquetaEstadoIdea } from "./etiqueta-estado-idea
 import { esAtrasada } from "@/lib/ideas/es-atrasada";
 import { mensajeDeError } from "@/lib/mensaje-de-error";
 import { eliminarIdea } from "@/app/ideas/actions";
+import { formatearFechaHora } from "@/lib/zona-horaria";
 
 type IdeaConRelaciones = Idea & {
   cuenta: Cuenta;
@@ -58,7 +59,7 @@ export function IdeaFilaExpandible({ idea, ahora }: { idea: IdeaConRelaciones; a
           </span>
         </div>
         {idea.programadaPara && (
-          <p className="text-xs text-zinc-500">{idea.programadaPara.toISOString()} UTC</p>
+          <p className="text-xs text-zinc-500">{formatearFechaHora(idea.programadaPara)}</p>
         )}
       </button>
       {abierta && (

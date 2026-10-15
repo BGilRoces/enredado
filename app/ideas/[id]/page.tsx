@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { EstadoIdea, TipoPublicacion } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
+import { aInputDatetimeLocal, claveDiaLocal, desdeHoraLocal } from "@/lib/zona-horaria";
 import { asegurarAccesoACuenta } from "@/lib/auth/cuenta-permitida";
 import { esAtrasada } from "@/lib/ideas/es-atrasada";
 import { mensajeDeError } from "@/lib/mensaje-de-error";
@@ -31,10 +32,6 @@ const ETIQUETA_ESTADO_MANUAL: Record<(typeof ESTADOS_MANUALES)[number], string> 
   guionada: "Guionada",
   grabada: "Grabada",
 };
-
-function aInputDatetimeLocal(fecha: Date | null): string {
-  return fecha ? fecha.toISOString().slice(0, 16) : "";
-}
 
 /**
  * Estas acciones corren desde un <form> plano, sin JS de cliente que pueda
@@ -115,7 +112,7 @@ export default async function IdeaPage({
     "use server";
     const valor = String(formData.get("programadaPara") ?? "");
     await conManejoDeError(id, () =>
-      valor ? calendarizarIdea(id, new Date(valor)) : descalendarizarIdea(id)
+      valor ? calendarizarIdea(id, desdeHoraLocal(valor)) : descalendarizarIdea(id)
     );
   }
 
@@ -168,7 +165,7 @@ export default async function IdeaPage({
           <p className={`text-sm font-medium ${faltaProgramar ? "text-rose-800" : "text-emerald-800"}`}>
             {faltaProgramar
               ? "Falta programarla en Instagram"
-              : `Programada en Instagram (marcada el ${idea.programadaEnIgEl!.toISOString().slice(0, 10)})`}
+              : `Programada en Instagram (marcada el ${claveDiaLocal(idea.programadaEnIgEl!)})`}
           </p>
           <p className="text-xs text-zinc-600">
             El panel no publica solo: abrí la app de Instagram, subí el archivo, elegí el audio, pegá el caption y
@@ -258,7 +255,7 @@ export default async function IdeaPage({
             className={INPUT_CLASS}
           />
           <span className="text-xs text-zinc-500">
-            Hora UTC. Es la fecha en la que va a salir en Instagram; el panel no publica solo.{" "}
+            Hora de Argentina (UTC-3). Es la fecha en la que va a salir en Instagram; el panel no publica solo.{" "}
             Si la cambiás, se desmarca como programada en IG. Dejá vacío y guardá para descalendarizar.
           </span>
           <SubmitButton
