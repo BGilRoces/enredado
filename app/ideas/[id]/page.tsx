@@ -68,7 +68,8 @@ export default async function IdeaPage({
   const idea = await prisma.idea.findUnique({
     where: { id },
     include: {
-      cuenta: true,
+      cuenta: { include: { productos: { orderBy: { nombre: "asc" } } } },
+      producto: true,
       publicaciones: { orderBy: { creadaEn: "asc" } },
       archivos: { orderBy: { orden: "asc" } },
     },
@@ -89,6 +90,7 @@ export default async function IdeaPage({
     // genérico atraparía como si fuera un error real.
     try {
       await actualizarIdea(id, {
+        productoId: String(formData.get("productoId") ?? "") || null,
         titulo: String(formData.get("titulo") ?? ""),
         descripcion: String(formData.get("descripcion") ?? ""),
         guion: String(formData.get("guion") ?? ""),
@@ -143,7 +145,7 @@ export default async function IdeaPage({
         </span>
       </div>
       <p className="text-sm text-zinc-500">
-        {idea.cuenta.nombre} · {idea.tipo}
+        {idea.cuenta.nombre} · {idea.producto?.nombre ?? "General"} · {idea.tipo}
       </p>
       {typeof error === "string" && (
         <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>
@@ -269,6 +271,19 @@ export default async function IdeaPage({
 
       <form action={guardar} className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
         <p className="text-sm font-medium text-zinc-700">Notas</p>
+        {idea.cuenta.productos.length > 0 && (
+          <>
+            <label className="text-sm font-medium text-zinc-700">Producto</label>
+            <select name="productoId" defaultValue={idea.productoId ?? ""} className={INPUT_CLASS}>
+              <option value="">General (marca)</option>
+              {idea.cuenta.productos.map((producto) => (
+                <option key={producto.id} value={producto.id}>
+                  {producto.nombre}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
         <input name="titulo" required defaultValue={idea.titulo} placeholder="Título" className={INPUT_CLASS} />
         <textarea
           name="descripcion"

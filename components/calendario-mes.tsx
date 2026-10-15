@@ -13,6 +13,8 @@ export interface IdeaEnCalendario extends IdeaConEstado {
   id: string;
   titulo: string;
   cuentaNombre: string;
+  /** Null = idea general (de marca). */
+  productoNombre: string | null;
   tipo: TipoPublicacion;
 }
 
@@ -134,7 +136,7 @@ export function CalendarioMes({
                     key={idea.id}
                     href={`/ideas/${idea.id}`}
                     className={`truncate rounded px-1 py-0.5 text-[11px] leading-tight ${claseBadgeEstadoIdea(idea)}`}
-                    title={`${idea.titulo} · ${idea.cuentaNombre}`}
+                    title={`${idea.titulo} · ${idea.cuentaNombre}${idea.productoNombre ? ` · ${idea.productoNombre}` : ""}`}
                   >
                     {idea.programadaPara && (
                       <span className="mr-1 font-medium">{horaLocal(idea.programadaPara)}</span>

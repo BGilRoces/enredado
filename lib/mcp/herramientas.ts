@@ -34,6 +34,10 @@ const fecha = z.iso
   .describe(`Fecha y hora ISO 8601 con offset, ej. 2026-10-20T18:30:00-03:00. Sin otra indicación del usuario, asumí ${ZONA} (-03:00).`);
 const tipo = z.enum(["post", "historia", "reel"]);
 const cuentaId = z.string().min(1).describe("Id de la Cuenta (ver listar_cuentas).");
+const productoId = z
+  .string()
+  .min(1)
+  .describe("Id del Producto (ver listar_cuentas). Sin producto = idea general, de marca.");
 const limite = (def: number) => z.number().int().min(1).max(100).default(def);
 
 const textoLibre = {
@@ -49,6 +53,7 @@ const textoLibre = {
 
 const incluirResumen = {
   cuenta: { select: { id: true, nombre: true, igUsername: true } },
+  producto: { select: { id: true, nombre: true } },
   publicaciones: { select: { id: true, estado: true, error: true, publicadaEn: true } },
   _count: { select: { archivos: true } },
 } satisfies Prisma.IdeaInclude;
@@ -59,6 +64,7 @@ function resumenIdea(idea: IdeaResumen) {
   return {
     id: idea.id,
     cuenta: idea.cuenta,
+    producto: idea.producto,
     titulo: idea.titulo,
     tipo: idea.tipo,
     estado: idea.estado,
@@ -130,13 +136,20 @@ export const herramientas: Herramienta[] = [
   definir({
     name: "listar_cuentas",
     title: "Listar cuentas de Instagram",
-    description: "Lista las Cuentas de Instagram del panel con su id, @usuario y estado. Es el primer paso: casi todo lo demás pide el id de la Cuenta.",
+    description:
+      "Lista las Cuentas de Instagram del panel con su id, @usuario, estado y productos (cada idea puede asociarse a un producto de su Cuenta, o ser general/de marca). Es el primer paso: casi todo lo demás pide el id de la Cuenta.",
     schema: z.object({}),
     annotations: SOLO_LECTURA,
     run: async () => {
       const cuentas = await prisma.cuenta.findMany({
         orderBy: { nombre: "asc" },
-        select: { id: true, nombre: true, igUsername: true, estado: true },
+        select: {
+          id: true,
+          nombre: true,
+          igUsername: true,
+          estado: true,
+          productos: { select: { id: true, nombre: true }, orderBy: { nombre: "asc" } },
+        },
       });
       return cuentas;
     },
@@ -191,17 +204,21 @@ export const herramientas: Herramienta[] = [
     schema: z.object({
       cuentaId: cuentaId.optional(),
       estado: z.enum(["idea", "guionada", "grabada", "enDrive"]).optional(),
+      productoId: productoId.optional().describe("Sólo las ideas de este Producto."),
+      soloGenerales: z.boolean().optional().describe("true = sólo las ideas generales (sin producto)."),
       tipo: tipo.optional(),
       sinFecha: z.boolean().optional().describe("true = sólo las que todavía no están calendarizadas."),
       faltaProgramarEnIg: z.boolean().optional().describe("true = sólo las enDrive con fecha que todavía no se marcaron como programadas en la app de Instagram."),
       limite: limite(30),
     }),
     annotations: SOLO_LECTURA,
-    run: async ({ cuentaId, estado, tipo, sinFecha, faltaProgramarEnIg, limite }) => {
+    run: async ({ cuentaId, estado, productoId, soloGenerales, tipo, sinFecha, faltaProgramarEnIg, limite }) => {
       const ideas = await prisma.idea.findMany({
         where: {
           ...(cuentaId && { cuentaId }),
           ...(estado && { estado }),
+          ...(productoId && { productoId }),
+          ...(soloGenerales && !productoId && { productoId: null }),
           ...(tipo && { tipo }),
           ...(sinFecha && { programadaPara: null }),
           ...(faltaProgramarEnIg && { estado: EstadoIdea.enDrive, programadaPara: { not: null }, programadaEnIgEl: null }),
@@ -286,6 +303,7 @@ export const herramientas: Herramienta[] = [
     ].join("\n"),
     schema: z.object({
       cuentaId,
+      productoId: productoId.optional().describe("Producto de la Cuenta al que pertenece la idea; omitilo para una idea general (de marca)."),
       tipo,
       titulo: textoLibre.titulo,
       descripcion: textoLibre.descripcion.optional(),
@@ -300,6 +318,7 @@ export const herramientas: Herramienta[] = [
     run: async (entrada) => {
       const id = await crearIdea({
         cuentaId: entrada.cuentaId,
+        productoId: entrada.productoId,
         titulo: entrada.titulo,
         tipo: entrada.tipo as TipoPublicacion,
         descripcion: entrada.descripcion,
@@ -335,6 +354,7 @@ export const herramientas: Herramienta[] = [
     ].join("\n"),
     schema: z.object({
       id: z.string().min(1),
+      productoId: productoId.nullable().optional().describe("Producto de la idea; null = pasarla a general (de marca)."),
       titulo: textoLibre.titulo.optional(),
       descripcion: textoLibre.descripcion.nullable().optional(),
       guion: textoLibre.guion.nullable().optional(),
@@ -353,7 +373,7 @@ export const herramientas: Herramienta[] = [
         throw new Error("Pasá driveLink o estado, no los dos: driveLink ya deja la idea en enDrive.");
       }
 
-      const cambiaTexto = ["titulo", "descripcion", "guion", "caption", "audio", "linkReferencia1", "linkReferencia2"].some(
+      const cambiaTexto = ["productoId", "titulo", "descripcion", "guion", "caption", "audio", "linkReferencia1", "linkReferencia2"].some(
         (campo) => campo in entrada && entrada[campo as keyof typeof entrada] !== undefined
       );
       if (cambiaTexto) {
@@ -361,6 +381,7 @@ export const herramientas: Herramienta[] = [
         const elegir = <T extends string | null | undefined>(nuevo: T | undefined, viejo: string | null) =>
           (nuevo === undefined ? viejo : nuevo) ?? undefined;
         await actualizarIdea(entrada.id, {
+          productoId: entrada.productoId,
           titulo: entrada.titulo ?? actual.titulo,
           descripcion: elegir(entrada.descripcion, actual.descripcion),
           guion: elegir(entrada.guion, actual.guion),
@@ -429,6 +450,7 @@ export const INSTRUCCIONES = [
   "Flujo: listar_cuentas → crear_idea → (el dueño la programa en la app de IG) → marcar_programada_en_ig.",
   "",
   "- Una Idea con `driveLink` + `programadaPara` queda lista y figura como \"falta programar en IG\" (listar_ideas con faltaProgramarEnIg=true). Cuando el usuario confirme que ya la programó en la app, llamá marcar_programada_en_ig.",
+  "- Cada Cuenta puede tener productos (ver listar_cuentas). Una idea se asocia a uno con `productoId`; sin producto es una idea general, de marca. Cuentas sin productos (ej.: software o servicios) sólo tienen ideas de marca.",
   "- `audio` es el nombre del audio de IG a usar; sirve de recordatorio para quien programa en la app.",
   "- El archivo tiene que estar en Google Drive; el panel no recibe archivos. Pasá el link de compartir del archivo o de la carpeta.",
   "- Post de una sola foto/video = link del archivo. Carousel = Post con carpeta (2-10 archivos). Historias = archivo suelto, o carpeta con un archivo por historia. Reel = un solo video.",

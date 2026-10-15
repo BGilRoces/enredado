@@ -27,7 +27,7 @@ export function IdeasPendientesLista({ ideas }: { ideas: IdeaEnCalendario[] }) {
             >
               <p className="truncate font-medium text-zinc-900">{idea.titulo}</p>
               <p className="mt-0.5 truncate text-zinc-500">
-                {idea.cuentaNombre} · {idea.tipo}
+                {idea.cuentaNombre}{idea.productoNombre ? ` · ${idea.productoNombre}` : ""} · {idea.tipo}
               </p>
               <span
                 className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${claseBadgeEstadoIdea(idea)}`}

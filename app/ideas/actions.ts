@@ -38,8 +38,20 @@ function asegurarNoPromocionada(idea: IdeaConPublicaciones) {
   }
 }
 
+/** Null = idea general (de marca). Tira si el Producto no existe o es de otra Cuenta. */
+async function validarProducto(cuentaId: string, productoId: string | null | undefined): Promise<string | null> {
+  if (!productoId) return null;
+  const producto = await prisma.producto.findUnique({ where: { id: productoId } });
+  if (!producto || producto.cuentaId !== cuentaId) {
+    throw new Error("Ese producto no pertenece a la Cuenta de la idea.");
+  }
+  return producto.id;
+}
+
 export interface CrearIdeaInput {
   cuentaId: string;
+  /** Sin valor = idea general (de marca). */
+  productoId?: string | null;
   titulo: string;
   tipo: TipoPublicacion;
   descripcion?: string;
@@ -56,9 +68,12 @@ export async function crearIdea(input: CrearIdeaInput): Promise<string> {
   await asegurarAccesoACuenta(cuenta.id);
   if (!input.titulo.trim()) throw new Error("El título no puede estar vacío.");
 
+  const productoId = await validarProducto(cuenta.id, input.productoId);
+
   const idea = await prisma.idea.create({
     data: {
       cuentaId: cuenta.id,
+      productoId,
       titulo: input.titulo.trim(),
       tipo: input.tipo,
       descripcion: input.descripcion || null,
@@ -75,6 +90,8 @@ export async function crearIdea(input: CrearIdeaInput): Promise<string> {
 }
 
 export interface ActualizarIdeaInput {
+  /** `undefined` = no tocar; `null` = pasar a idea general (de marca). */
+  productoId?: string | null;
   titulo: string;
   descripcion?: string;
   guion?: string;
@@ -85,15 +102,17 @@ export interface ActualizarIdeaInput {
 }
 
 /**
- * Título/descripción/guión/links/caption/audio son notas, siempre editables.
+ * Producto/título/descripción/guión/links/caption/audio son notas, siempre editables.
  */
 export async function actualizarIdea(id: string, data: ActualizarIdeaInput): Promise<void> {
-  await obtenerIdeaOTirar(id);
+  const idea = await obtenerIdeaOTirar(id);
   if (!data.titulo.trim()) throw new Error("El título no puede estar vacío.");
+  const productoId = data.productoId === undefined ? undefined : await validarProducto(idea.cuentaId, data.productoId);
 
   await prisma.idea.update({
     where: { id },
     data: {
+      ...(productoId !== undefined && { productoId }),
       titulo: data.titulo.trim(),
       descripcion: data.descripcion || null,
       guion: data.guion || null,

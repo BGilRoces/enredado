@@ -5,6 +5,7 @@ import { obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
 import { mensajeDeError } from "@/lib/mensaje-de-error";
 import { crearIdea } from "../actions";
 import { AppShell } from "@/components/app-shell";
+import { SelectorCuentaProducto } from "@/components/selector-cuenta-producto";
 import { SubmitButton } from "@/components/submit-button";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,7 @@ export default async function NuevaIdeaPage({
   const cuentas = await prisma.cuenta.findMany({
     where: cuentaIdPermitida ? { id: cuentaIdPermitida } : undefined,
     orderBy: { nombre: "asc" },
+    include: { productos: { orderBy: { nombre: "asc" }, select: { id: true, nombre: true } } },
   });
 
   async function crear(formData: FormData) {
@@ -38,6 +40,7 @@ export default async function NuevaIdeaPage({
     try {
       await crearIdea({
         cuentaId: String(formData.get("cuentaId") ?? ""),
+        productoId: String(formData.get("productoId") ?? "") || null,
         titulo: String(formData.get("titulo") ?? ""),
         tipo: String(formData.get("tipo") ?? "post") as TipoPublicacion,
         descripcion: String(formData.get("descripcion") ?? ""),
@@ -68,14 +71,8 @@ export default async function NuevaIdeaPage({
         </p>
       ) : (
         <form action={crear} className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-          <div className="flex gap-2">
-            <select name="cuentaId" required className={`${INPUT_CLASS} flex-1`}>
-              {cuentas.map((cuenta) => (
-                <option key={cuenta.id} value={cuenta.id}>
-                  {cuenta.nombre}
-                </option>
-              ))}
-            </select>
+          <div className="flex flex-wrap gap-2">
+            <SelectorCuentaProducto cuentas={cuentas} />
             <select name="tipo" defaultValue={TipoPublicacion.post} className={INPUT_CLASS}>
               {TIPOS.map((tipo) => (
                 <option key={tipo.value} value={tipo.value}>

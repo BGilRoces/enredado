@@ -8,6 +8,7 @@ import { CalendarioMes, type IdeaEnCalendario } from "@/components/calendario-me
 import { IdeasPendientesLista } from "@/components/ideas-pendientes-lista";
 import { AppShell } from "@/components/app-shell";
 import { SelectorMes } from "@/components/selector-mes";
+import { opcionesProducto, parsearFiltroProductos, whereProducto } from "@/lib/productos/filtro";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,18 @@ export default async function CalendarioPage({
     cuentas.map((cuenta) => cuenta.id),
   );
 
+  const cuentasVisibles = cuentaIdPermitida ? [cuentaIdPermitida] : (cuentasFiltro ?? cuentas.map((c) => c.id));
+  const productos = await prisma.producto.findMany({
+    where: { cuentaId: { in: cuentasVisibles } },
+    orderBy: [{ cuenta: { nombre: "asc" } }, { nombre: "asc" }],
+    include: { cuenta: { select: { nombre: true } } },
+  });
+  const opcionesProductos = opcionesProducto(productos);
+  const productosFiltro = parsearFiltroProductos(
+    params.productoId,
+    opcionesProductos.map((o) => o.value),
+  );
+
   const dias = mesEnGrilla(anio, mes);
   const desde = inicioDeDiaLocal(dias[0].fecha.toISOString().slice(0, 10));
   const hasta = new Date(inicioDeDiaLocal(dias[dias.length - 1].fecha.toISOString().slice(0, 10)).getTime() + 24 * 60 * 60 * 1000);
@@ -56,13 +69,14 @@ export default async function CalendarioPage({
   const ideas = await prisma.idea.findMany({
     where: {
       programadaPara: { gte: desde, lt: hasta },
+      ...whereProducto(productosFiltro),
       ...(cuentaIdPermitida
         ? { cuentaId: cuentaIdPermitida }
         : cuentasFiltro
           ? { cuentaId: { in: cuentasFiltro } }
           : {}),
     },
-    include: { cuenta: true, publicaciones: { select: { estado: true, programadaPara: true } } },
+    include: { cuenta: true, producto: true, publicaciones: { select: { estado: true, programadaPara: true } } },
   });
 
   const ideasPorDia: Record<string, IdeaEnCalendario[]> = {};
@@ -73,6 +87,7 @@ export default async function CalendarioPage({
       id: idea.id,
       titulo: idea.titulo,
       cuentaNombre: idea.cuenta.nombre,
+      productoNombre: idea.producto?.nombre ?? null,
       tipo: idea.tipo,
       estado: idea.estado,
       programadaPara: idea.programadaPara,
@@ -86,6 +101,7 @@ export default async function CalendarioPage({
   const ideasPendientes = await prisma.idea.findMany({
     where: {
       programadaPara: null,
+      ...whereProducto(productosFiltro),
       ...(cuentaIdPermitida
         ? { cuentaId: cuentaIdPermitida }
         : cuentasFiltro
@@ -93,13 +109,14 @@ export default async function CalendarioPage({
           : {}),
     },
     orderBy: { creadaEn: "desc" },
-    include: { cuenta: true, publicaciones: { select: { estado: true, programadaPara: true } } },
+    include: { cuenta: true, producto: true, publicaciones: { select: { estado: true, programadaPara: true } } },
   });
 
   const ideasPendientesEnCalendario: IdeaEnCalendario[] = ideasPendientes.map((idea) => ({
     id: idea.id,
     titulo: idea.titulo,
     cuentaNombre: idea.cuenta.nombre,
+    productoNombre: idea.producto?.nombre ?? null,
     tipo: idea.tipo,
     estado: idea.estado,
     programadaPara: idea.programadaPara,
@@ -109,7 +126,9 @@ export default async function CalendarioPage({
 
   const anterior = mesSiguiente(anio, mes, -1);
   const siguiente = mesSiguiente(anio, mes, 1);
-  const queryCuenta = cuentasFiltro !== null ? `&cuentaId=${encodeURIComponent(cuentasFiltro.join(","))}` : "";
+  const queryCuenta =
+    (cuentasFiltro !== null ? `&cuentaId=${encodeURIComponent(cuentasFiltro.join(","))}` : "") +
+    (productosFiltro !== null ? `&productoId=${encodeURIComponent(productosFiltro.join(","))}` : "");
 
   return (
     <AppShell active="calendario" ancho="completo">
@@ -133,12 +152,22 @@ export default async function CalendarioPage({
             →
           </a>
         </div>
-        <FiltroCheckboxes
-          name="cuentaId"
-          etiqueta="Cuenta:"
-          opciones={cuentas.map((cuenta) => ({ value: cuenta.id, label: cuenta.nombre }))}
-          seleccionadas={cuentasFiltro}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <FiltroCheckboxes
+            name="cuentaId"
+            etiqueta="Cuenta:"
+            opciones={cuentas.map((cuenta) => ({ value: cuenta.id, label: cuenta.nombre }))}
+            seleccionadas={cuentasFiltro}
+          />
+          {opcionesProductos.length > 0 && (
+            <FiltroCheckboxes
+              name="productoId"
+              etiqueta="Producto:"
+              opciones={opcionesProductos}
+              seleccionadas={productosFiltro}
+            />
+          )}
+        </div>
       </div>
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">

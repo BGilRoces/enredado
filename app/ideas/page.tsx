@@ -6,6 +6,7 @@ import { parsearSeleccionMultiple } from "@/lib/parsear-seleccion-multiple";
 import { IdeaFilaExpandible } from "@/components/idea-fila-expandible";
 import { ETIQUETAS_POR_ESTADO_IDEA } from "@/components/etiqueta-estado-idea";
 import { AppShell } from "@/components/app-shell";
+import { opcionesProducto, parsearFiltroProductos, whereProducto } from "@/lib/productos/filtro";
 
 // Mismo motivo que /publicar y /historial: la lista tiene que ser siempre
 // fresca, no cacheable en build time.
@@ -31,6 +32,18 @@ export default async function IdeasPage({
     params.cuentaId,
     cuentas.map((cuenta) => cuenta.id),
   );
+  // Productos de las Cuentas visibles (las tildadas en el filtro de Cuenta).
+  const cuentasVisibles = cuentaIdPermitida ? [cuentaIdPermitida] : (cuentasFiltro ?? cuentas.map((c) => c.id));
+  const productos = await prisma.producto.findMany({
+    where: { cuentaId: { in: cuentasVisibles } },
+    orderBy: [{ cuenta: { nombre: "asc" } }, { nombre: "asc" }],
+    include: { cuenta: { select: { nombre: true } } },
+  });
+  const opcionesProductos = opcionesProducto(productos);
+  const productosFiltro = parsearFiltroProductos(
+    params.productoId,
+    opcionesProductos.map((o) => o.value),
+  );
   const estadosFiltro = parsearSeleccionMultiple(params.estado, ESTADOS);
   const soloFaltaProgramar = params.faltaIg === "1";
 
@@ -41,13 +54,14 @@ export default async function IdeasPage({
         : cuentasFiltro
           ? { cuentaId: { in: cuentasFiltro } }
           : {}),
+      ...whereProducto(productosFiltro),
       ...(estadosFiltro ? { estado: { in: estadosFiltro } } : {}),
       ...(soloFaltaProgramar
         ? { estado: EstadoIdea.enDrive, programadaPara: { not: null }, programadaEnIgEl: null }
         : {}),
     },
     orderBy: { creadaEn: "desc" },
-    include: { cuenta: true, publicaciones: { select: { estado: true, programadaPara: true } } },
+    include: { cuenta: true, producto: true, publicaciones: { select: { estado: true, programadaPara: true } } },
   });
 
   const ahora = new Date();
@@ -84,6 +98,14 @@ export default async function IdeasPage({
           opciones={cuentas.map((cuenta) => ({ value: cuenta.id, label: cuenta.nombre }))}
           seleccionadas={cuentasFiltro}
         />
+        {opcionesProductos.length > 0 && (
+          <FiltroCheckboxes
+            name="productoId"
+            etiqueta="Producto:"
+            opciones={opcionesProductos}
+            seleccionadas={productosFiltro}
+          />
+        )}
         <FiltroCheckboxes
           name="estado"
           etiqueta="Estado:"

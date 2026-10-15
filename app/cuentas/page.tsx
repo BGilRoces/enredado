@@ -5,6 +5,7 @@ import { desconectarCuenta } from "./actions";
 import { LIMITE_PUBLICACIONES_POR_VENTANA, VENTANA_LIMITE_MS } from "@/lib/limite-diario/excedio-limite-diario";
 import { AppShell } from "@/components/app-shell";
 import { EliminarCuentaBoton } from "@/components/eliminar-cuenta-boton";
+import { ProductosCuenta } from "@/components/productos-cuenta";
 import { SubmitButton } from "@/components/submit-button";
 
 const ETIQUETA_ESTADO_CUENTA: Record<EstadoCuenta, string> = {
@@ -56,6 +57,7 @@ export default async function CuentasPage({
   const cuentas = await prisma.cuenta.findMany({
     where: cuentaIdPermitida ? { id: cuentaIdPermitida } : undefined,
     orderBy: { creadaEn: "asc" },
+    include: { productos: { orderBy: { nombre: "asc" }, select: { id: true, nombre: true } } },
   });
   const publicadasHoyPorCuenta = await contarPublicadasHoyPorCuenta(cuentas);
 
@@ -96,8 +98,9 @@ export default async function CuentasPage({
           {cuentas.map((cuenta) => (
             <li
               key={cuenta.id}
-              className="flex items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm"
+              className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm"
             >
+              <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-600 to-fuchsia-500 text-sm font-semibold text-white">
                   {cuenta.nombre.slice(0, 1).toUpperCase()}
@@ -146,6 +149,8 @@ export default async function CuentasPage({
               {cuenta.estado === EstadoCuenta.desconectada && (
                 <EliminarCuentaBoton id={cuenta.id} nombre={cuenta.nombre} />
               )}
+              </div>
+              <ProductosCuenta cuentaId={cuenta.id} productos={cuenta.productos} />
             </li>
           ))}
         </ul>

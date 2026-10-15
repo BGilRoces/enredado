@@ -44,6 +44,10 @@ _Avoid_: usuario, invitado, admin.
 Una nota de contenido de una Cuenta de Instagram, antes de que exista el archivo a publicar: título, mini-descripción, guión, hasta 2 links de referencia, y un estado (idea, guionada, grabada, enDrive). Es la fila durable de todo su ciclo de vida — calendarizarla no la duplica en otro registro (ver "Promocionar" y ADR-0013).
 _Avoid_: borrador, draft, nota.
 
+**Producto**:
+Un producto o servicio puntual de una Cuenta (ej.: "Funda cubre asiento" de MIMADA). Una Idea puede asociarse a uno para poder filtrar el notebook y el calendario por producto; sin Producto es una Idea general, de marca. Una Cuenta puede no tener ninguno (Tropero, Agroideas). Se gestionan desde /cuentas.
+_Avoid_: ítem, SKU, artículo.
+
 **Promocionar** (una Idea):
 Convertir una Idea ya elegible (enDrive, con el link de Drive resuelto, y su fecha/hora ya cumplida) en una Publicación real, que a partir de ahí sigue el mismo camino que cualquier Publicación creada desde /publicar. Lo hace solo el worker de Ideas, nunca una acción manual (ver ADR-0013).
 _Avoid_: convertir, disparar, activar.
