@@ -3,6 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 
+/** Minúsculas y sin tildes, para que "camara" encuentre "Cámara". */
+function normalizar(texto: string): string {
+  return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
 interface Opcion {
   value: string;
   label: string;
@@ -28,6 +33,7 @@ export function FiltroCheckboxes({
   const router = useRouter();
   const pathname = usePathname();
   const [abierto, setAbierto] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
   const contenedorRef = useRef<HTMLDivElement>(null);
 
   const activas = seleccionadas ?? opciones.map((opcion) => opcion.value);
@@ -65,6 +71,10 @@ export function FiltroCheckboxes({
     navegarCon(todasSeleccionadas ? [] : opciones.map((opcion) => opcion.value));
   }
 
+  const opcionesVisibles = busqueda.trim()
+    ? opciones.filter((opcion) => normalizar(opcion.label).includes(normalizar(busqueda)))
+    : opciones;
+
   const resumen = todasSeleccionadas
     ? "Todas"
     : activas.length === 0
@@ -77,7 +87,10 @@ export function FiltroCheckboxes({
     <div ref={contenedorRef} className="relative inline-block text-sm">
       <button
         type="button"
-        onClick={() => setAbierto((valor) => !valor)}
+        onClick={() => {
+          setBusqueda("");
+          setAbierto((valor) => !valor);
+        }}
         className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50"
       >
         <span className="text-xs font-medium text-zinc-500">{etiqueta}</span>
@@ -94,8 +107,20 @@ export function FiltroCheckboxes({
           >
             {todasSeleccionadas ? "Deseleccionar todas" : "Seleccionar todas"}
           </button>
+          <input
+            type="search"
+            autoFocus
+            value={busqueda}
+            onChange={(evento) => setBusqueda(evento.target.value)}
+            placeholder="Buscar…"
+            className="rounded-md border border-zinc-200 px-2 py-1.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+          />
           <div className="my-1 border-t border-zinc-100" />
-          {opciones.map((opcion) => (
+          {opcionesVisibles.length === 0 && (
+            <p className="px-2 py-1.5 text-xs text-zinc-500">Sin resultados.</p>
+          )}
+          <div className="flex max-h-64 flex-col gap-1 overflow-y-auto">
+          {opcionesVisibles.map((opcion) => (
             <label
               key={opcion.value}
               className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-700 transition-colors hover:bg-zinc-50"
@@ -109,6 +134,7 @@ export function FiltroCheckboxes({
               {opcion.label}
             </label>
           ))}
+          </div>
         </div>
       )}
     </div>
