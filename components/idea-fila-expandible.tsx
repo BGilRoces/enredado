@@ -17,7 +17,7 @@ export function IdeaFilaExpandible({ idea, ahora }: { idea: IdeaConRelaciones; a
   const [abierta, setAbierta] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [eliminando, startTransition] = useTransition();
-  const atrasada = esAtrasada(ahora, { ...idea, yaPromocionada: idea.publicaciones.length > 0 });
+  const atrasada = esAtrasada(ahora, { ...idea, yaPromocionada: idea.publicaciones.some((p) => p.estado === "publicada") });
 
   function eliminar() {
     if (!window.confirm(`¿Eliminar "${idea.titulo}"? No se puede deshacer.`)) return;
@@ -63,6 +63,7 @@ export function IdeaFilaExpandible({ idea, ahora }: { idea: IdeaConRelaciones; a
       </button>
       {abierta && (
         <div className="mt-3 flex flex-col gap-2 text-sm text-zinc-700">
+          {idea.audio && <p className="text-xs text-zinc-600">Audio: {idea.audio}</p>}
           {idea.descripcion && <p>{idea.descripcion}</p>}
           {idea.guion && (
             <p className="whitespace-pre-wrap rounded-lg bg-zinc-50 p-2 text-xs text-zinc-600">{idea.guion}</p>

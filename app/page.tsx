@@ -1,4 +1,4 @@
-import { EstadoCuenta, EstadoPublicacion } from "@prisma/client";
+import { EstadoCuenta, EstadoIdea, EstadoPublicacion } from "@prisma/client";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/db/prisma";
 import { obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
@@ -38,11 +38,12 @@ export default async function DashboardPage() {
     include: { cuenta: true, _count: { select: { archivos: true } } },
   });
 
-  const proximasEnCola = await prisma.publicacion.findMany({
-    where: { estado: EstadoPublicacion.pendiente, ...filtroCuenta },
-    orderBy: [{ programadaPara: "asc" }, { creadaEn: "asc" }],
-    take: 5,
-    include: { cuenta: true, _count: { select: { archivos: true } } },
+  // El panel no publica solo (ver ADR-0020): lo que importa es qué falta programar en la app de IG.
+  const faltaProgramar = await prisma.idea.findMany({
+    where: { estado: EstadoIdea.enDrive, programadaPara: { not: null }, programadaEnIgEl: null, ...filtroCuenta },
+    orderBy: { programadaPara: "asc" },
+    take: 10,
+    include: { cuenta: true },
   });
 
   const actividadReciente = await prisma.publicacion.findMany({
@@ -67,7 +68,7 @@ export default async function DashboardPage() {
         <div className="flex flex-col gap-2 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           <p className="font-medium text-zinc-900">Todavía no hay Cuentas conectadas.</p>
           <p className="text-sm text-zinc-500">
-            Conectá tu primer Instagram para poder empezar a publicar.
+            Conectá tu primer Instagram para empezar a organizar su contenido.
           </p>
           <a
             href="/cuentas"
@@ -119,17 +120,23 @@ export default async function DashboardPage() {
           )}
 
           <section className="flex flex-col gap-3">
-            <h2 className="text-sm font-semibold text-zinc-900">Próximo en la cola</h2>
-            {proximasEnCola.length === 0 ? (
-              <p className="text-sm text-zinc-500">No hay Publicaciones en cola.</p>
+            <h2 className="text-sm font-semibold text-zinc-900">Falta programar en Instagram</h2>
+            {faltaProgramar.length === 0 ? (
+              <p className="text-sm text-zinc-500">No hay nada pendiente de programar en la app.</p>
             ) : (
               <ul className="flex flex-col gap-2">
-                {proximasEnCola.map((publicacion) => (
-                  <li
-                    key={publicacion.id}
-                    className="flex flex-col gap-1 rounded-2xl border border-zinc-200 bg-white p-4 text-sm shadow-sm"
-                  >
-                    <PublicacionResumen publicacion={publicacion} mostrarFecha />
+                {faltaProgramar.map((idea) => (
+                  <li key={idea.id}>
+                    <a
+                      href={`/ideas/${idea.id}`}
+                      className="flex flex-col gap-1 rounded-2xl border border-zinc-200 bg-white p-4 text-sm shadow-sm transition-colors hover:bg-zinc-50"
+                    >
+                      <span className="font-medium text-zinc-900">{idea.titulo}</span>
+                      <span className="text-xs text-zinc-500">
+                        {idea.cuenta.nombre} · {idea.tipo} · {idea.programadaPara!.toISOString().slice(0, 16).replace("T", " ")} UTC
+                        {idea.audio ? ` · Audio: ${idea.audio}` : ""}
+                      </span>
+                    </a>
                   </li>
                 ))}
               </ul>

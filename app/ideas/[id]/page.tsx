@@ -4,8 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { asegurarAccesoACuenta } from "@/lib/auth/cuenta-permitida";
 import { esAtrasada } from "@/lib/ideas/es-atrasada";
 import { mensajeDeError } from "@/lib/mensaje-de-error";
-import { claseBadgeEstadoIdea, etiquetaEstadoIdea } from "@/components/etiqueta-estado-idea";
-import { claseBadgeEstado, etiquetaEstado } from "@/components/etiqueta-estado";
+import { claseBadgeEstadoIdea, etiquetaEstadoIdea, faltaProgramarEnIg } from "@/components/etiqueta-estado-idea";
 import { AppShell } from "@/components/app-shell";
 import { CarpetaIdeaArchivos } from "@/components/carpeta-idea-archivos";
 import { DriveMiniatura } from "@/components/drive-miniatura";
@@ -18,6 +17,7 @@ import {
   descalendarizarIdea,
   eliminarIdea,
   marcarEnDrive,
+  marcarProgramadaEnIg,
 } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -79,8 +79,10 @@ export default async function IdeaPage({
   if (!idea) notFound();
   await asegurarAccesoACuenta(idea.cuentaId);
 
-  const promocionada = idea.publicaciones.length > 0;
-  const hayPendientes = idea.publicaciones.some((p) => p.estado === "pendiente");
+  // Sólo lo que el panel publicó antes de ADR-0020 congela la Idea.
+  const promocionada = idea.publicaciones.some((p) => p.estado === "publicada");
+  const faltaProgramar = faltaProgramarEnIg(idea);
+  const marcarComoProgramada = idea.programadaEnIgEl === null;
   const atrasada = esAtrasada(new Date(), { ...idea, yaPromocionada: promocionada });
 
   async function guardar(formData: FormData) {
@@ -96,6 +98,7 @@ export default async function IdeaPage({
         linkReferencia1: String(formData.get("linkReferencia1") ?? ""),
         linkReferencia2: String(formData.get("linkReferencia2") ?? ""),
         caption: String(formData.get("caption") ?? ""),
+        audio: String(formData.get("audio") ?? ""),
       });
     } catch (err) {
       redirect(`/ideas/${id}?error=${encodeURIComponent(mensajeDeError(err))}`);
@@ -116,9 +119,9 @@ export default async function IdeaPage({
     );
   }
 
-  async function cancelarPublicaciones() {
+  async function alternarProgramadaEnIg() {
     "use server";
-    await conManejoDeError(id, () => descalendarizarIdea(id));
+    await conManejoDeError(id, () => marcarProgramadaEnIg(id, marcarComoProgramada));
   }
 
   async function borrar() {
@@ -151,43 +154,39 @@ export default async function IdeaPage({
       {atrasada && (
         <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">
           {idea.estado === "enDrive"
-            ? "Atrasada: la hora programada pasó hace más de 2 horas y no se publicó, así que se descartó la publicación automática. Reprogramala para que salga."
-            : "Atrasada: la hora programada ya pasó y esta idea todavía no está \"en Drive\", así que no se publicó sola."}
+            ? "Atrasada: la hora ya pasó y no la marcaste como programada en Instagram. Reprogramala o marcala si ya salió."
+            : "Atrasada: la hora ya pasó y esta idea todavía no está \"en Drive\"."}
         </p>
       )}
 
-      {promocionada && (
-        <div className="flex flex-col gap-2 rounded-lg bg-sky-50 p-3 text-sm text-sky-700">
-          <p>
-            Ya se promocionó a {idea.publicaciones.length === 1 ? "una Publicación real" : `${idea.publicaciones.length} Publicaciones reales`}{" "}
-            — el título/guión/links siguen editables como notas, pero el tipo y el/los archivo(s) ya no se pueden
-            cambiar acá.
+      {(idea.estado === "enDrive" && idea.programadaPara) && (
+        <div
+          className={`flex flex-col gap-2 rounded-2xl border p-4 ${
+            faltaProgramar ? "border-rose-200 bg-rose-50" : "border-emerald-200 bg-emerald-50"
+          }`}
+        >
+          <p className={`text-sm font-medium ${faltaProgramar ? "text-rose-800" : "text-emerald-800"}`}>
+            {faltaProgramar
+              ? "Falta programarla en Instagram"
+              : `Programada en Instagram (marcada el ${idea.programadaEnIgEl!.toISOString().slice(0, 10)})`}
           </p>
-          {idea.publicaciones.length > 1 && (
-            <ul className="flex flex-col gap-1">
-              {idea.publicaciones.map((publicacion, i) => (
-                <li key={publicacion.id} className="flex items-center gap-2">
-                  <span className="text-xs text-sky-600">#{i + 1}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${claseBadgeEstado(publicacion)}`}>
-                    {etiquetaEstado(publicacion)}
-                  </span>
-                  {publicacion.error && <span className="text-xs text-rose-700">{publicacion.error}</span>}
-                </li>
-              ))}
-            </ul>
-          )}
+          <p className="text-xs text-zinc-600">
+            El panel no publica solo: abrí la app de Instagram, subí el archivo, elegí el audio, pegá el caption y
+            programala para la fecha de abajo. Después marcala acá.
+          </p>
+          <form action={alternarProgramadaEnIg}>
+            <SubmitButton
+              pendingText="Guardando…"
+              className={
+                faltaProgramar
+                  ? "rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800"
+                  : "rounded-lg border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 transition-colors hover:bg-white"
+              }
+            >
+              {faltaProgramar ? "Ya la programé en Instagram" : "Desmarcar"}
+            </SubmitButton>
+          </form>
         </div>
-      )}
-
-      {hayPendientes && (
-        <form action={cancelarPublicaciones}>
-          <SubmitButton
-            pendingText="Cancelando…"
-            className="rounded-lg border border-rose-200 px-3 py-1.5 text-sm text-rose-700 transition-colors hover:bg-rose-50"
-          >
-            Cancelar publicación programada
-          </SubmitButton>
-        </form>
       )}
 
       {!promocionada && (
@@ -259,10 +258,8 @@ export default async function IdeaPage({
             className={INPUT_CLASS}
           />
           <span className="text-xs text-zinc-500">
-            Hora UTC. {idea.estado === EstadoIdea.enDrive
-              ? "Al llegar la hora se publica sola."
-              : 'Recordatorio no más: recién dispara si para esa hora ya está "en Drive".'}{" "}
-            Dejá vacío y guardá para descalendarizar.
+            Hora UTC. Es la fecha en la que va a salir en Instagram; el panel no publica solo.{" "}
+            Si la cambiás, se desmarca como programada en IG. Dejá vacío y guardá para descalendarizar.
           </span>
           <SubmitButton
             pendingText="Guardando…"
@@ -300,6 +297,8 @@ export default async function IdeaPage({
           Caption (lo que sale de verdad en el post)
         </label>
         <textarea name="caption" defaultValue={idea.caption ?? ""} rows={2} className={INPUT_CLASS} />
+        <label className="text-sm font-medium text-zinc-700">Audio de Instagram (canción – artista)</label>
+        <input name="audio" defaultValue={idea.audio ?? ""} placeholder="Opcional" className={INPUT_CLASS} />
         <SubmitButton
           pendingText="Guardando…"
           className="self-start rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800"

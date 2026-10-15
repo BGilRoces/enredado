@@ -16,75 +16,50 @@ const BADGES: Record<EstadoIdea, string> = {
   enDrive: "bg-amber-100 text-amber-700",
 };
 
-const BADGE_PROGRAMADA = "bg-sky-100 text-sky-700";
-
-/**
- * Una Idea `enDrive` con fecha futura todavía no tiene Publicación: el worker
- * la promociona recién cuando llega la hora (ver ADR-0013). Las creadas desde
- * el panel ya nacen promocionadas ("Programada"), pero las programadas por
- * MCP no — sin esto figuraban como "En Drive" aunque ya estén agendadas.
- * Si la hora ya pasó y no se promovió, se descartó (ADR-0018): vuelve a "En Drive".
- */
-function estaProgramadaSinPromover(idea: IdeaConEstado): boolean {
-  return (
-    idea.publicaciones.length === 0 &&
-    idea.estado === EstadoIdea.enDrive &&
-    idea.programadaPara !== null &&
-    idea.programadaPara.getTime() > Date.now()
-  );
-}
-
-/** Peor-primero: si el grupo tiene alguna en este estado, es la más relevante para mostrar como resumen. */
-const PRIORIDAD: EstadoPublicacion[] = [
-  EstadoPublicacion.fallida,
-  EstadoPublicacion.bloqueadaPorLimite,
-  EstadoPublicacion.publicando,
-  EstadoPublicacion.pendiente,
-  EstadoPublicacion.cancelada,
-  EstadoPublicacion.publicada,
-];
+const BADGE_PROGRAMADA_EN_IG = "bg-emerald-100 text-emerald-700";
+const BADGE_FALTA_PROGRAMAR = "bg-rose-100 text-rose-700";
 
 export interface IdeaConEstado {
   estado: EstadoIdea;
   programadaPara: Date | null;
-  // Puede ser más de una (ver ADR-0016): una Idea con carpeta de Historias
-  // promociona a varias Publicaciones independientes.
+  /** Ya la programaron a mano en la app de Instagram (ver ADR-0020). */
+  programadaEnIgEl: Date | null;
+  // Sólo importa el historial: lo que el panel publicó antes de ADR-0020.
   publicaciones: { estado: EstadoPublicacion; programadaPara: Date | null }[];
 }
 
-/** De un grupo de Publicaciones, la más relevante para resumir en un solo badge (ver PRIORIDAD arriba). */
-function representativa(publicaciones: IdeaConEstado["publicaciones"]) {
-  for (const estado of PRIORIDAD) {
-    const encontrada = publicaciones.find((p) => p.estado === estado);
-    if (encontrada) return encontrada;
-  }
-  return publicaciones[0];
+/**
+ * Una Idea `enDrive` con fecha es contenido listo: lo único que falta es
+ * programarlo en la app de Instagram (ver ADR-0020). Sin fecha todavía no se
+ * sabe cuándo, así que es sólo "En Drive".
+ */
+export function faltaProgramarEnIg(idea: Pick<IdeaConEstado, "estado" | "programadaPara" | "programadaEnIgEl">): boolean {
+  return idea.estado === EstadoIdea.enDrive && idea.programadaPara !== null && idea.programadaEnIgEl === null;
 }
 
-/**
- * Una vez promocionada (`publicaciones` no vacío, ver ADR-0013), el badge
- * pasa a mostrar el estado real (Publicada/Fallida/Programada...) en vez de
- * quedar pegado en "En Drive" para siempre. Con más de una Publicación (ver
- * ADR-0016) se suma un contador tipo "(2/3)" salvo que estén todas iguales.
- */
+function estaProgramadaEnIg(idea: IdeaConEstado): boolean {
+  return idea.estado === EstadoIdea.enDrive && idea.programadaEnIgEl !== null;
+}
+
+function publicadas(publicaciones: IdeaConEstado["publicaciones"]) {
+  return publicaciones.filter((p) => p.estado === EstadoPublicacion.publicada);
+}
+
+/** Lo que el panel publicó antes de ADR-0020 sigue mostrándose como "Publicada"; el resto de las Publicaciones ya no cuenta. */
 export function etiquetaEstadoIdea(idea: IdeaConEstado): string {
-  if (estaProgramadaSinPromover(idea)) return "Programada";
-  if (idea.publicaciones.length === 0) return ETIQUETAS[idea.estado];
-
-  const base = etiquetaEstado(representativa(idea.publicaciones));
-  if (idea.publicaciones.length === 1) return base;
-
-  const todasIguales = idea.publicaciones.every((p) => p.estado === idea.publicaciones[0].estado);
-  if (todasIguales) return base;
-
-  const publicadas = idea.publicaciones.filter((p) => p.estado === EstadoPublicacion.publicada).length;
-  return `${base} (${publicadas}/${idea.publicaciones.length})`;
+  const hechas = publicadas(idea.publicaciones);
+  if (hechas.length > 0) return etiquetaEstado(hechas[0]);
+  if (estaProgramadaEnIg(idea)) return "Programada en IG";
+  if (faltaProgramarEnIg(idea)) return "Falta programar en IG";
+  return ETIQUETAS[idea.estado];
 }
 
 export function claseBadgeEstadoIdea(idea: IdeaConEstado): string {
-  if (estaProgramadaSinPromover(idea)) return BADGE_PROGRAMADA;
-  if (idea.publicaciones.length === 0) return BADGES[idea.estado];
-  return claseBadgeEstado(representativa(idea.publicaciones));
+  const hechas = publicadas(idea.publicaciones);
+  if (hechas.length > 0) return claseBadgeEstado(hechas[0]);
+  if (estaProgramadaEnIg(idea)) return BADGE_PROGRAMADA_EN_IG;
+  if (faltaProgramarEnIg(idea)) return BADGE_FALTA_PROGRAMAR;
+  return BADGES[idea.estado];
 }
 
 export { ETIQUETAS as ETIQUETAS_POR_ESTADO_IDEA };

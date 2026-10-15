@@ -32,6 +32,7 @@ export default async function IdeasPage({
     cuentas.map((cuenta) => cuenta.id),
   );
   const estadosFiltro = parsearSeleccionMultiple(params.estado, ESTADOS);
+  const soloFaltaProgramar = params.faltaIg === "1";
 
   const ideas = await prisma.idea.findMany({
     where: {
@@ -41,6 +42,9 @@ export default async function IdeasPage({
           ? { cuentaId: { in: cuentasFiltro } }
           : {}),
       ...(estadosFiltro ? { estado: { in: estadosFiltro } } : {}),
+      ...(soloFaltaProgramar
+        ? { estado: EstadoIdea.enDrive, programadaPara: { not: null }, programadaEnIgEl: null }
+        : {}),
     },
     orderBy: { creadaEn: "desc" },
     include: { cuenta: true, publicaciones: { select: { estado: true, programadaPara: true } } },
@@ -64,6 +68,16 @@ export default async function IdeasPage({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        <a
+          href={soloFaltaProgramar ? "/ideas" : "/ideas?faltaIg=1"}
+          className={
+            soloFaltaProgramar
+              ? "rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-medium text-white"
+              : "rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-700 transition-colors hover:bg-rose-50"
+          }
+        >
+          Falta programar en IG
+        </a>
         <FiltroCheckboxes
           name="cuentaId"
           etiqueta="Cuenta:"

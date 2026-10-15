@@ -1,25 +1,23 @@
 import { EstadoIdea } from "@prisma/client";
-import { estaCaducada } from "@/lib/scheduler/caducadas";
 
 export interface IdeaAtrasable {
   estado: EstadoIdea;
   programadaPara: Date | null;
+  /** Ya la publicó el panel (historial anterior a ADR-0020). */
   yaPromocionada: boolean;
+  programadaEnIgEl: Date | null;
 }
 
 /**
- * Función pura (ver ADR-0013): una Idea calendarizada cuya hora ya pasó pero
- * que todavía no llegó a `enDrive` nunca se promociona sola (el worker de
- * promoción sólo mira `enDrive` — ver decidir-ideas-para-promover.ts). Esto
- * es un cálculo de UI para avisarle a Bautista, no un estado guardado. Una
- * vez promocionada ya no está "atrasada" — pasó a ser una o más
- * Publicaciones reales, controladas por el pipeline existente (ver ADR-0016).
- * Una Idea `enDrive` sólo está atrasada si su hora caducó (ADR-0018): antes
- * de eso el worker todavía la va a promocionar en el próximo tick.
+ * Función pura: una Idea calendarizada cuya hora ya pasó sin estar lista
+ * (todavía no `enDrive`) o sin haberse programado en Instagram. Cálculo de UI
+ * para avisarle a Bautista, no un estado guardado. El panel ya no publica
+ * solo (ver ADR-0020), así que no hay ventana de gracia: pasada la hora, si
+ * no se programó en IG, quedó atrasada.
  */
 export function esAtrasada(ahora: Date, idea: IdeaAtrasable): boolean {
   if (!idea.programadaPara) return false;
   if (idea.yaPromocionada) return false;
-  if (idea.estado === EstadoIdea.enDrive) return estaCaducada(ahora, idea.programadaPara);
+  if (idea.programadaEnIgEl) return false;
   return idea.programadaPara <= ahora;
 }

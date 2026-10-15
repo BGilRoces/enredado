@@ -10,7 +10,6 @@ export type Seccion = "inicio" | "cuentas" | "publicar" | "historial" | "ideas" 
 const NAV: { href: string; label: string; seccion: Seccion; icon: (props: { className?: string }) => React.ReactNode }[] = [
   { href: "/", label: "Inicio", seccion: "inicio", icon: IconInicio },
   { href: "/cuentas", label: "Cuentas", seccion: "cuentas", icon: IconCuentas },
-  { href: "/publicar", label: "Publicar", seccion: "publicar", icon: IconPublicar },
   { href: "/ideas", label: "Ideas", seccion: "ideas", icon: IconIdeas },
   { href: "/ideas/calendario", label: "Calendario", seccion: "calendario", icon: IconCalendario },
   { href: "/historial", label: "Historial", seccion: "historial", icon: IconHistorial },
@@ -119,16 +118,6 @@ function IconCuentas({ className }: { className?: string }) {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className={className}>
       <circle cx="12" cy="8" r="3.2" />
       <path d="M5 20c0-4 3-6.5 7-6.5s7 2.5 7 6.5" />
-    </svg>
-  );
-}
-
-function IconPublicar({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M12 15V5" />
-      <path d="M8 9l4-4 4 4" />
-      <path d="M5 19h14" />
     </svg>
   );
 }

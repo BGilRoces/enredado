@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EstadoCuenta, EstadoIdea, EstadoPublicacion, Prisma, TipoPublicacion } from "@prisma/client";
+import { EstadoIdea, Prisma, TipoPublicacion } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import {
   actualizarIdea,
@@ -9,9 +9,11 @@ import {
   descalendarizarIdea,
   eliminarIdea,
   marcarEnDrive,
+  marcarProgramadaEnIg,
   reordenarArchivosIdea,
 } from "@/app/ideas/actions";
-import { cancelarPublicacion, resolverLinkDrive } from "@/app/publicar/actions";
+import { resolverLinkDrive } from "@/app/publicar/actions";
+import { faltaProgramarEnIg } from "@/components/etiqueta-estado-idea";
 import { mensajeDeError } from "@/lib/mensaje-de-error";
 import type { Herramienta } from "./protocolo";
 
@@ -39,6 +41,7 @@ const textoLibre = {
   descripcion: z.string().max(2000).describe("Resumen interno de la idea."),
   guion: z.string().max(10000).describe("Notas de producción / guión."),
   caption: z.string().max(2200).describe("Texto real que sale en Instagram (límite de IG: 2200 caracteres). Si falta, se usa el título."),
+  audio: z.string().trim().max(200).describe("Audio de la biblioteca de Instagram a usar al programarla en la app (canción – artista)."),
   linkReferencia: z.string().url().max(500).describe("Link de referencia."),
 };
 
@@ -61,8 +64,12 @@ function resumenIdea(idea: IdeaResumen) {
     estado: idea.estado,
     ...conFecha(idea.programadaPara),
     caption: idea.caption,
+    audio: idea.audio,
     driveLink: idea.driveLink,
     archivosEnCarpeta: idea._count.archivos,
+    faltaProgramarEnIg: faltaProgramarEnIg(idea),
+    programadaEnIgEl: idea.programadaEnIgEl?.toISOString() ?? null,
+    // Historial de lo que el panel publicó antes de ADR-0020; hoy el panel no publica.
     publicaciones: idea.publicaciones,
   };
 }
@@ -86,30 +93,6 @@ async function detalleIdea(id: string) {
     linkReferencia2: idea.linkReferencia2,
     archivos: idea.archivos.map((a) => ({ id: a.id, orden: a.orden, nombre: a.nombre })),
   };
-}
-
-/**
- * Programar al pasado no tiene sentido por MCP: el panel publicaría enseguida,
- * sin que nadie lo confirme, algo cuya hora ya no corresponde (ver ADR-0018).
- * Para "publicar ya" se programa unos minutos adelante, a propósito.
- */
-function asegurarFutura(iso: string): Date {
-  const fecha = new Date(iso);
-  if (fecha.getTime() <= Date.now()) {
-    throw new Error(
-      `La fecha ${iso} ya pasó. Programá a futuro; si el usuario quiere publicar ya, elegí un horario unos minutos adelante y confirmalo con él.`
-    );
-  }
-  return fecha;
-}
-
-async function asegurarCuentaConectada(id: string) {
-  const cuenta = await prisma.cuenta.findUnique({ where: { id } });
-  if (!cuenta) throw new Error("La Cuenta elegida no existe (ver listar_cuentas).");
-  if (cuenta.estado !== EstadoCuenta.conectada) {
-    throw new Error(`La Cuenta @${cuenta.igUsername} está "${cuenta.estado}": hay que reconectarla desde el panel antes de programarle contenido.`);
-  }
-  return cuenta;
 }
 
 // ─── Definición de herramientas ─────────────────────────────────────────────
@@ -163,7 +146,7 @@ export const herramientas: Herramienta[] = [
     name: "ver_agenda",
     title: "Ver agenda / calendario",
     description:
-      "Lo que está calendarizado en un rango de fechas, ordenado por fecha: Ideas con fecha y Publicaciones sueltas (creadas desde /publicar). Usalo para ver huecos antes de programar.",
+      "Lo que está calendarizado en un rango de fechas, ordenado por fecha: Ideas con fecha (cada una indica si falta programarla en Instagram) y Publicaciones sueltas históricas. Usalo para ver huecos antes de proponer horarios.",
     schema: z.object({
       desde: fecha,
       hasta: fecha,
@@ -210,16 +193,18 @@ export const herramientas: Herramienta[] = [
       estado: z.enum(["idea", "guionada", "grabada", "enDrive"]).optional(),
       tipo: tipo.optional(),
       sinFecha: z.boolean().optional().describe("true = sólo las que todavía no están calendarizadas."),
+      faltaProgramarEnIg: z.boolean().optional().describe("true = sólo las enDrive con fecha que todavía no se marcaron como programadas en la app de Instagram."),
       limite: limite(30),
     }),
     annotations: SOLO_LECTURA,
-    run: async ({ cuentaId, estado, tipo, sinFecha, limite }) => {
+    run: async ({ cuentaId, estado, tipo, sinFecha, faltaProgramarEnIg, limite }) => {
       const ideas = await prisma.idea.findMany({
         where: {
           ...(cuentaId && { cuentaId }),
           ...(estado && { estado }),
           ...(tipo && { tipo }),
           ...(sinFecha && { programadaPara: null }),
+          ...(faltaProgramarEnIg && { estado: EstadoIdea.enDrive, programadaPara: { not: null }, programadaEnIgEl: null }),
         },
         include: incluirResumen,
         orderBy: { actualizadaEn: "desc" },
@@ -232,7 +217,7 @@ export const herramientas: Herramienta[] = [
   definir({
     name: "ver_idea",
     title: "Ver una idea",
-    description: "Detalle completo de una Idea: guión, caption, links, archivos de su carpeta (con ids para reordenar) y el estado de sus Publicaciones.",
+    description: "Detalle completo de una Idea: guión, caption, audio, links, archivos de su carpeta (con ids para reordenar) y si ya está programada en Instagram.",
     schema: z.object({ id: z.string().min(1) }),
     annotations: SOLO_LECTURA,
     run: ({ id }) => detalleIdea(id),
@@ -241,7 +226,7 @@ export const herramientas: Herramienta[] = [
   definir({
     name: "listar_publicaciones",
     title: "Listar publicaciones",
-    description: "Publicaciones reales (lo que ya salió, está en cola o falló), de la más reciente a la más vieja. Útil para ver errores (estado=fallida).",
+    description: "Historial de Publicaciones que el panel subió a Instagram antes de dejar de publicar (ver INSTRUCCIONES). El panel ya no crea nuevas.",
     schema: z.object({
       cuentaId: cuentaId.optional(),
       estado: z.enum(["pendiente", "publicando", "publicada", "fallida", "cancelada", "bloqueadaPorLimite"]).optional(),
@@ -291,13 +276,13 @@ export const herramientas: Herramienta[] = [
 
   definir({
     name: "crear_idea",
-    title: "Crear idea (y opcionalmente programarla)",
+    title: "Crear idea (y opcionalmente dejarla lista para programar)",
     description: [
       "Crea una Idea en una Cuenta. Es la vía para TODO el contenido: post, carousel, historia o reel.",
-      "Si además pasás `driveLink` y `programadaPara`, queda programada y sale sola a esa hora (el panel la publica en Instagram).",
+      "El panel NO publica en Instagram. Con `driveLink` + `programadaPara` la Idea queda lista y aparece como \"falta programar en IG\": el dueño la programa a mano en la app de Instagram (así puede elegir el audio de la biblioteca) y después se marca con marcar_programada_en_ig.",
       "- Post con link de ARCHIVO = una sola foto o video. Post con carpeta de Drive = carousel (2-10 archivos). Historia con archivo = una historia; con carpeta = una por archivo, en orden. Reel = un solo video (link de archivo, no de carpeta).",
-      "- Sin `driveLink` la idea es sólo una nota; `programadaPara` sin `driveLink` es un recordatorio y NO publica nada.",
-      "- `programadaPara` tiene que ser futura (se rechaza una fecha pasada). Confirmá con el usuario cuenta, fecha y caption antes de programar algo con archivo.",
+      "- `audio`: nombre del audio de la biblioteca de IG a usar (canción – artista); es una nota para quien la programa en la app.",
+      "- Sin `driveLink` la idea es sólo una nota; `programadaPara` sin `driveLink` es un recordatorio.",
     ].join("\n"),
     schema: z.object({
       cuentaId,
@@ -306,16 +291,13 @@ export const herramientas: Herramienta[] = [
       descripcion: textoLibre.descripcion.optional(),
       guion: textoLibre.guion.optional(),
       caption: textoLibre.caption.optional(),
+      audio: textoLibre.audio.optional(),
       linkReferencia1: textoLibre.linkReferencia.optional(),
       linkReferencia2: textoLibre.linkReferencia.optional(),
       driveLink: z.string().url().optional().describe("Link de Drive al archivo o a la carpeta ya subida. Con esto la idea pasa a estado enDrive."),
       programadaPara: fecha.optional(),
     }),
     run: async (entrada) => {
-      // Validar lo que se pueda ANTES de crear nada, para no dejar ideas a medias.
-      if (entrada.programadaPara) asegurarFutura(entrada.programadaPara);
-      if (entrada.programadaPara && entrada.driveLink) await asegurarCuentaConectada(entrada.cuentaId);
-
       const id = await crearIdea({
         cuentaId: entrada.cuentaId,
         titulo: entrada.titulo,
@@ -323,6 +305,7 @@ export const herramientas: Herramienta[] = [
         descripcion: entrada.descripcion,
         guion: entrada.guion,
         caption: entrada.caption,
+        audio: entrada.audio,
         linkReferencia1: entrada.linkReferencia1,
         linkReferencia2: entrada.linkReferencia2,
       });
@@ -336,12 +319,7 @@ export const herramientas: Herramienta[] = [
         throw new Error(`La idea se creó (id ${id}) pero no se pudo completar: ${mensajeDeError(error)} Corregilo con actualizar_idea.`);
       }
 
-      const idea = await detalleIdea(id);
-      const aviso =
-        entrada.programadaPara && !entrada.driveLink
-          ? "Tiene fecha pero no link de Drive: es sólo un recordatorio, no se va a publicar hasta que tenga driveLink."
-          : undefined;
-      return { aviso, idea };
+      return { idea: await detalleIdea(id) };
     },
   }),
 
@@ -350,9 +328,10 @@ export const herramientas: Herramienta[] = [
     title: "Actualizar / reprogramar idea",
     description: [
       "Modifica una Idea. Sólo se cambia lo que pasás; `null` borra el campo.",
-      "- `programadaPara`: fecha = (re)programar; null = sacarla del calendario (cancela sus Publicaciones pendientes).",
-      "- `driveLink`: pasa la idea a enDrive. Una vez promocionada a Publicación ya no se puede cambiar archivo ni estado, sólo texto y fecha mientras siga pendiente.",
+      "- `programadaPara`: fecha = (re)programar (si cambia, se desmarca como programada en IG); null = sacarla del calendario.",
+      "- `driveLink`: pasa la idea a enDrive.",
       "- `estado`: idea | guionada | grabada (enDrive se logra con driveLink).",
+      "- Para marcar que ya la programaron en la app de Instagram usá marcar_programada_en_ig.",
     ].join("\n"),
     schema: z.object({
       id: z.string().min(1),
@@ -360,6 +339,7 @@ export const herramientas: Herramienta[] = [
       descripcion: textoLibre.descripcion.nullable().optional(),
       guion: textoLibre.guion.nullable().optional(),
       caption: textoLibre.caption.nullable().optional(),
+      audio: textoLibre.audio.nullable().optional(),
       linkReferencia1: textoLibre.linkReferencia.nullable().optional(),
       linkReferencia2: textoLibre.linkReferencia.nullable().optional(),
       estado: z.enum(["idea", "guionada", "grabada"]).optional(),
@@ -373,7 +353,7 @@ export const herramientas: Herramienta[] = [
         throw new Error("Pasá driveLink o estado, no los dos: driveLink ya deja la idea en enDrive.");
       }
 
-      const cambiaTexto = ["titulo", "descripcion", "guion", "caption", "linkReferencia1", "linkReferencia2"].some(
+      const cambiaTexto = ["titulo", "descripcion", "guion", "caption", "audio", "linkReferencia1", "linkReferencia2"].some(
         (campo) => campo in entrada && entrada[campo as keyof typeof entrada] !== undefined
       );
       if (cambiaTexto) {
@@ -385,6 +365,7 @@ export const herramientas: Herramienta[] = [
           descripcion: elegir(entrada.descripcion, actual.descripcion),
           guion: elegir(entrada.guion, actual.guion),
           caption: elegir(entrada.caption, actual.caption),
+          audio: elegir(entrada.audio, actual.audio),
           linkReferencia1: elegir(entrada.linkReferencia1, actual.linkReferencia1),
           linkReferencia2: elegir(entrada.linkReferencia2, actual.linkReferencia2),
         });
@@ -396,13 +377,23 @@ export const herramientas: Herramienta[] = [
       if (entrada.programadaPara === null) {
         await descalendarizarIdea(entrada.id);
       } else if (entrada.programadaPara) {
-        const programadaPara = asegurarFutura(entrada.programadaPara);
-        const cuentaDeLaIdea = await prisma.idea.findUniqueOrThrow({ where: { id: entrada.id }, select: { cuentaId: true, estado: true } });
-        if (cuentaDeLaIdea.estado === EstadoIdea.enDrive) await asegurarCuentaConectada(cuentaDeLaIdea.cuentaId);
-        await calendarizarIdea(entrada.id, programadaPara);
+        await calendarizarIdea(entrada.id, new Date(entrada.programadaPara));
       }
 
       return detalleIdea(entrada.id);
+    },
+  }),
+
+  definir({
+    name: "marcar_programada_en_ig",
+    title: "Marcar idea como programada en Instagram",
+    description:
+      "Registra que el dueño ya programó esta Idea en la app de Instagram (sale de la lista \"falta programar en IG\"). No publica nada. Usalo sólo cuando el usuario confirme que ya la programó. `programada: false` la vuelve a marcar como pendiente. La Idea tiene que tener fecha.",
+    schema: z.object({ id: z.string().min(1), programada: z.boolean().default(true) }),
+    annotations: { idempotentHint: true, openWorldHint: false },
+    run: async ({ id, programada }) => {
+      await marcarProgramadaEnIg(id, programada);
+      return detalleIdea(id);
     },
   }),
 
@@ -422,7 +413,7 @@ export const herramientas: Herramienta[] = [
   definir({
     name: "eliminar_idea",
     title: "Eliminar idea",
-    description: "Borra la Idea y cancela sus Publicaciones que sigan pendientes. No toca lo ya publicado en Instagram. Irreversible.",
+    description: "Borra la Idea del panel. No toca nada en Instagram (si ya estaba programada en la app, hay que borrarla ahí a mano). Irreversible.",
     schema: z.object({ id: z.string().min(1) }),
     annotations: { destructiveHint: true, openWorldHint: false },
     run: async ({ id }) => {
@@ -430,30 +421,17 @@ export const herramientas: Herramienta[] = [
       return { eliminada: id };
     },
   }),
-
-  definir({
-    name: "cancelar_publicacion",
-    title: "Cancelar publicación pendiente",
-    description:
-      "Cancela una Publicación que sigue pendiente (todavía no salió). Para las que nacieron de una Idea es mejor actualizar_idea con programadaPara=null, que además la deja libre para reprogramar.",
-    schema: z.object({ id: z.string().min(1) }),
-    annotations: { destructiveHint: true, openWorldHint: false },
-    run: async ({ id }) => {
-      await cancelarPublicacion(id);
-      return { cancelada: id, estado: EstadoPublicacion.cancelada };
-    },
-  }),
 ];
 
 export const INSTRUCCIONES = [
-  "Panel para programar contenido (posts, carousels, historias y reels) en varias Cuentas de Instagram.",
+  "Panel para organizar contenido (posts, carousels, historias y reels) de varias Cuentas de Instagram. NO publica ni programa en Instagram: la programación se hace a mano en la app de IG (para poder elegir audios de su biblioteca).",
   "",
-  "Flujo: listar_cuentas → crear_idea. Todo el contenido pasa por Ideas: una Idea con `driveLink` + `programadaPara` queda programada y el panel la publica sola a esa hora (chequea cada ~2 min).",
+  "Flujo: listar_cuentas → crear_idea → (el dueño la programa en la app de IG) → marcar_programada_en_ig.",
   "",
-  "- El archivo tiene que estar ya en Google Drive; el panel no recibe archivos. Pasá el link de compartir del archivo o de la carpeta (la cuenta de Google conectada al panel tiene que poder verlo).",
+  "- Una Idea con `driveLink` + `programadaPara` queda lista y figura como \"falta programar en IG\" (listar_ideas con faltaProgramarEnIg=true). Cuando el usuario confirme que ya la programó en la app, llamá marcar_programada_en_ig.",
+  "- `audio` es el nombre del audio de IG a usar; sirve de recordatorio para quien programa en la app.",
+  "- El archivo tiene que estar en Google Drive; el panel no recibe archivos. Pasá el link de compartir del archivo o de la carpeta.",
   "- Post de una sola foto/video = link del archivo. Carousel = Post con carpeta (2-10 archivos). Historias = archivo suelto, o carpeta con un archivo por historia. Reel = un solo video.",
-  "- Las fechas tienen que ser futuras. Para publicar \"ya\", programá unos minutos adelante (el panel chequea cada ~2 min). Si una hora pasa más de 2 horas sin publicarse, se descarta y hay que reprogramarla a propósito.",
-  `- Fechas en ISO 8601 con offset. Si el usuario no aclara zona, asumí ${ZONA} (-03:00).`,
-  "- Programar algo con archivo publica de verdad en Instagram: confirmá con el usuario cuenta, fecha y caption antes de llamar.",
-  "- Mirá ver_agenda antes de proponer horarios, y listar_publicaciones con estado=fallida para ver errores.",
+  `- Fechas en ISO 8601 con offset. Si el usuario no aclara zona, asumí ${ZONA} (-03:00). Cambiar la fecha de una Idea la desmarca como programada en IG.`,
+  "- Mirá ver_agenda antes de proponer horarios.",
 ].join("\n");

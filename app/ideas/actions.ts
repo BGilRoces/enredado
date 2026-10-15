@@ -10,7 +10,6 @@ import { parsearDriveFolderId, parsearDriveLink } from "@/lib/ideas/parsear-driv
 import { mintDriveAccessToken } from "@/lib/drive-oauth/mint-access-token";
 import { listarArchivosDeCarpeta } from "@/lib/drive/listar-carpeta";
 import { mensajeDeError } from "@/lib/mensaje-de-error";
-import { cancelarPublicacion } from "@/app/publicar/actions";
 
 type IdeaConPublicaciones = Idea & { publicaciones: Pick<Publicacion, "id" | "estado">[] };
 
@@ -32,10 +31,10 @@ async function obtenerIdeaOTirar(id: string): Promise<IdeaConPublicaciones> {
   return idea;
 }
 
-/** Una vez promocionada (ver ADR-0013), cambiar el archivo/carpeta/tipo no tiene efecto sobre lo ya creado. */
+/** Sólo las Ideas que el panel ya publicó (historial anterior a ADR-0020) quedan congeladas: ahí el archivo ya salió. */
 function asegurarNoPromocionada(idea: IdeaConPublicaciones) {
-  if (idea.publicaciones.length > 0) {
-    throw new Error("Esta Idea ya se promocionó a una Publicación, no se puede editar así.");
+  if (idea.publicaciones.some((p) => p.estado === EstadoPublicacion.publicada)) {
+    throw new Error("Esta Idea ya se publicó, no se puede editar así.");
   }
 }
 
@@ -48,6 +47,7 @@ export interface CrearIdeaInput {
   linkReferencia1?: string;
   linkReferencia2?: string;
   caption?: string;
+  audio?: string;
 }
 
 export async function crearIdea(input: CrearIdeaInput): Promise<string> {
@@ -66,6 +66,7 @@ export async function crearIdea(input: CrearIdeaInput): Promise<string> {
       linkReferencia1: input.linkReferencia1 || null,
       linkReferencia2: input.linkReferencia2 || null,
       caption: input.caption || null,
+      audio: input.audio?.trim() || null,
       estado: EstadoIdea.idea,
     },
   });
@@ -80,15 +81,14 @@ export interface ActualizarIdeaInput {
   linkReferencia1?: string;
   linkReferencia2?: string;
   caption?: string;
+  audio?: string;
 }
 
 /**
- * Título/descripción/guión/links son notas, siempre editables. El tipo y la
- * Cuenta no lo son (mismo criterio que editarPublicacion): cambiarlos después
- * de promocionada invalidaría la(s) Publicación(es) ya creada(s).
+ * Título/descripción/guión/links/caption/audio son notas, siempre editables.
  */
 export async function actualizarIdea(id: string, data: ActualizarIdeaInput): Promise<void> {
-  const idea = await obtenerIdeaOTirar(id);
+  await obtenerIdeaOTirar(id);
   if (!data.titulo.trim()) throw new Error("El título no puede estar vacío.");
 
   await prisma.idea.update({
@@ -100,19 +100,9 @@ export async function actualizarIdea(id: string, data: ActualizarIdeaInput): Pro
       linkReferencia1: data.linkReferencia1 || null,
       linkReferencia2: data.linkReferencia2 || null,
       caption: data.caption || null,
+      audio: data.audio?.trim() || null,
     },
   });
-
-  // Si ya se promocionó pero alguna Publicación vinculada sigue pendiente, el
-  // caption real que va a salir en Instagram también se re-sincroniza (mismo
-  // texto que ve el usuario acá, para que no queden desalineados).
-  const idsPendientes = idea.publicaciones.filter((p) => p.estado === EstadoPublicacion.pendiente).map((p) => p.id);
-  if (idsPendientes.length > 0) {
-    await prisma.publicacion.updateMany({
-      where: { id: { in: idsPendientes }, estado: EstadoPublicacion.pendiente },
-      data: { caption: data.caption || null },
-    });
-  }
 
   revalidarIdeas();
 }
@@ -248,77 +238,44 @@ export async function cambiarEstadoIdea(id: string, estado: (typeof ESTADOS_MANU
 
 /**
  * Calendarizar = setear `programadaPara` en la misma fila (ver ADR-0013), no
- * crea nada nuevo. Si ya se promocionó a una o más Publicaciones (ver
- * ADR-0016), sólo se puede recalendarizar mientras TODAS sigan pendientes —
- * una vez que alguna ya se disparó, un cambio de fecha parcial dejaría el
- * grupo inconsistente.
+ * crea nada nuevo. Cambiar la fecha invalida la marca "programada en IG": lo
+ * que ya quedó agendado en la app tiene la hora vieja y hay que rehacerlo.
  */
 export async function calendarizarIdea(id: string, programadaPara: Date): Promise<void> {
   const idea = await obtenerIdeaOTirar(id);
+  const cambioFecha = idea.programadaPara?.getTime() !== programadaPara.getTime();
 
-  if (idea.publicaciones.length > 0) {
-    if (idea.publicaciones.some((p) => p.estado !== EstadoPublicacion.pendiente)) {
-      throw new Error("Ya se disparó alguna Publicación de esta Idea, no se puede recalendarizar.");
-    }
-    await prisma.publicacion.updateMany({
-      where: { id: { in: idea.publicaciones.map((p) => p.id) }, estado: EstadoPublicacion.pendiente },
-      data: { programadaPara },
-    });
-  }
-
-  await prisma.idea.update({ where: { id }, data: { programadaPara } });
+  await prisma.idea.update({
+    where: { id },
+    data: { programadaPara, ...(cambioFecha && { programadaEnIgEl: null }) },
+  });
   revalidarIdeas();
 }
 
-/**
- * Si ya estaba promocionada, cancela todas las Publicaciones vinculadas que
- * sigan pendientes (reusa cancelarPublicacion, no la reimplementa) y las
- * desvincula, para que la Idea quede libre de promocionarse de nuevo más
- * adelante si se recalendariza.
- */
 export async function descalendarizarIdea(id: string): Promise<void> {
-  const idea = await obtenerIdeaOTirar(id);
-
-  const pendientes = idea.publicaciones.filter((p) => p.estado === EstadoPublicacion.pendiente);
-  for (const publicacion of pendientes) {
-    await cancelarPublicacion(publicacion.id);
-  }
-  if (pendientes.length > 0) {
-    await prisma.publicacion.updateMany({
-      where: { id: { in: pendientes.map((p) => p.id) } },
-      data: { ideaId: null },
-    });
-  }
-
-  await prisma.idea.update({ where: { id }, data: { programadaPara: null } });
+  await obtenerIdeaOTirar(id);
+  await prisma.idea.update({ where: { id }, data: { programadaPara: null, programadaEnIgEl: null } });
   revalidarIdeas();
 }
 
 /**
- * Borra la Idea junto con las Publicaciones vinculadas que todavía sigan
- * pendientes (nunca salieron a Meta, no son "historial" real) — a diferencia
- * de descalendarizarIdea, acá no queda nada que reusar más adelante, así que
- * no tiene sentido dejar una fila cancelada huérfana sin la Idea que la
- * originó. Reusa cancelarPublicacion como guarda atómica (sólo transiciona
- * si sigue "pendiente" y limpia el archivo de Storage) antes de borrar la
- * fila; si ya se disparó entre que la leímos y ahora, la dejamos como está
- * en vez de arriesgar un borrado a medio camino.
+ * Marca (o desmarca) que la Idea ya quedó programada en la app de Instagram
+ * (ver ADR-0020). Es lo único que "programar" significa en el panel: no
+ * publica nada, sólo saca la Idea de la lista de "falta programar en IG".
  */
-export async function eliminarIdea(id: string): Promise<void> {
+export async function marcarProgramadaEnIg(id: string, programada: boolean): Promise<void> {
   const idea = await obtenerIdeaOTirar(id);
-
-  for (const publicacion of idea.publicaciones) {
-    if (publicacion.estado !== EstadoPublicacion.pendiente) continue;
-    try {
-      await cancelarPublicacion(publicacion.id);
-      await prisma.publicacionArchivo.deleteMany({ where: { publicacionId: publicacion.id } });
-      await prisma.publicacion.delete({ where: { id: publicacion.id } });
-    } catch {
-      // Best-effort: la dejamos "cancelada" y desvinculada (onDelete: SetNull)
-      // en vez de fallar todo el borrado de la Idea por esto.
-    }
+  if (programada && !idea.programadaPara) {
+    throw new Error("Primero ponele fecha y hora a la Idea (la que programaste en Instagram).");
   }
+  await prisma.idea.update({ where: { id }, data: { programadaEnIgEl: programada ? new Date() : null } });
+  revalidarIdeas();
+  revalidatePath("/");
+}
 
+/** Borra la Idea; lo ya publicado en Instagram y el historial de Publicaciones no se tocan (se desvinculan). */
+export async function eliminarIdea(id: string): Promise<void> {
+  await obtenerIdeaOTirar(id);
   await prisma.idea.delete({ where: { id } });
   revalidarIdeas();
 }
