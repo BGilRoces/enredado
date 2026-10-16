@@ -355,6 +355,7 @@ export const herramientas: Herramienta[] = [
       "- `programadaPara`: fecha = (re)programar (si cambia, se desmarca como programada en IG); null = sacarla del calendario.",
       "- `driveLink`: pasa la idea a enDrive.",
       "- `estado`: idea | guionada | grabada (enDrive se logra con driveLink).",
+      "- Colab: agregarColaboradoraIds / quitarColaboradoraIds suman o sacan Cuentas sin tocar las demás; colaboradoraIds reemplaza la lista completa.",
       "- Para marcar que ya la programaron en la app de Instagram usá marcar_programada_en_ig.",
     ].join("\n"),
     schema: z.object({
