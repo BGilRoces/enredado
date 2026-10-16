@@ -5,8 +5,8 @@ import type { Cuenta, EstadoPublicacion, Idea, Producto } from "@prisma/client";
 import { claseBadgeEstadoIdea, etiquetaEstadoIdea } from "./etiqueta-estado-idea";
 import { esAtrasada } from "@/lib/ideas/es-atrasada";
 import { mensajeDeError } from "@/lib/mensaje-de-error";
-import { cambiarEstadoIdea, eliminarIdea, marcarPublicada } from "@/app/ideas/actions";
-import { claveDiaLocal, horaLocal } from "@/lib/zona-horaria";
+import { calendarizarIdea, cambiarEstadoIdea, descalendarizarIdea, eliminarIdea, marcarPublicada } from "@/app/ideas/actions";
+import { aInputDatetimeLocal, claveDiaLocal, desdeHoraLocal, horaLocal } from "@/lib/zona-horaria";
 
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
@@ -20,9 +20,24 @@ type IdeaConRelaciones = Idea & {
 /** Fila colapsable del notebook: título + badge + Cuenta; expandida muestra descripción/guión/links. */
 export function IdeaFilaExpandible({ idea, ahora }: { idea: IdeaConRelaciones; ahora: Date }) {
   const [abierta, setAbierta] = useState(false);
+  const [editandoFecha, setEditandoFecha] = useState(false);
+  const [fechaElegida, setFechaElegida] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [eliminando, startTransition] = useTransition();
   const atrasada = esAtrasada(ahora, { ...idea, yaPromocionada: idea.publicaciones.some((p) => p.estado === "publicada") });
+
+  function guardarFecha(valor: string) {
+    setError(null);
+    startTransition(async () => {
+      try {
+        if (valor) await calendarizarIdea(idea.id, desdeHoraLocal(valor));
+        else await descalendarizarIdea(idea.id);
+        setEditandoFecha(false);
+      } catch (err) {
+        setError(mensajeDeError(err));
+      }
+    });
+  }
 
   function alternarPublicada() {
     setError(null);
@@ -65,10 +80,18 @@ export function IdeaFilaExpandible({ idea, ahora }: { idea: IdeaConRelaciones; a
   return (
     <li className="flex overflow-hidden rounded-2xl border border-zinc-200 bg-white text-sm shadow-sm">
       {/* Bloque de fecha aparte, para poder recorrer la lista por día de un vistazo. */}
-      <div
-        className={`flex w-20 shrink-0 flex-col items-center justify-center gap-0.5 border-r border-zinc-200 px-2 py-3 text-center ${
-          atrasada ? "bg-rose-50" : "bg-zinc-50"
-        }`}
+      <button
+        type="button"
+        onClick={() => {
+          setFechaElegida(aInputDatetimeLocal(idea.programadaPara));
+          setEditandoFecha((valor) => !valor);
+        }}
+        title="Cambiar la fecha"
+        aria-label="Cambiar la fecha"
+        aria-expanded={editandoFecha}
+        className={`flex w-20 shrink-0 cursor-pointer flex-col items-center justify-center gap-0.5 border-r border-zinc-200 px-2 py-3 text-center transition-colors ${
+          atrasada ? "bg-rose-50 hover:bg-rose-100" : "bg-zinc-50 hover:bg-zinc-100"
+        } ${editandoFecha ? "ring-2 ring-inset ring-indigo-300" : ""}`}
       >
         {idea.programadaPara && partesFecha ? (
           <>
@@ -81,8 +104,46 @@ export function IdeaFilaExpandible({ idea, ahora }: { idea: IdeaConRelaciones; a
         ) : (
           <span className="text-xs font-medium text-zinc-400">Sin fecha</span>
         )}
-      </div>
+      </button>
       <div className="flex min-w-0 flex-1 flex-col p-4">
+        {editandoFecha && (
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 p-2">
+            <input
+              type="datetime-local"
+              value={fechaElegida}
+              onChange={(evento) => setFechaElegida(evento.target.value)}
+              onClick={(evento) => evento.currentTarget.showPicker?.()}
+              autoFocus
+              className="rounded-lg border border-zinc-300 bg-white p-1.5 text-xs outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+            />
+            <button
+              type="button"
+              disabled={eliminando || !fechaElegida}
+              onClick={() => guardarFecha(fechaElegida)}
+              className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-zinc-800 disabled:opacity-50"
+            >
+              {eliminando ? "Guardando…" : "Guardar fecha"}
+            </button>
+            {idea.programadaPara && (
+              <button
+                type="button"
+                disabled={eliminando}
+                onClick={() => guardarFecha("")}
+                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 disabled:opacity-50"
+              >
+                Quitar fecha
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setEditandoFecha(false)}
+              className="px-2 py-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-700"
+            >
+              Cancelar
+            </button>
+          </div>
+        )}
+        {editandoFecha && error && <p className="mb-3 text-xs text-rose-700">{error}</p>}
         <button
           type="button"
           onClick={() => setAbierta((valor) => !valor)}
