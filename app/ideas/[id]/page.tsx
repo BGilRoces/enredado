@@ -28,11 +28,12 @@ export const dynamic = "force-dynamic";
 const INPUT_CLASS =
   "rounded-lg border border-zinc-300 p-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100";
 
-const ESTADOS_MANUALES = [EstadoIdea.idea, EstadoIdea.guionada, EstadoIdea.grabada] as const;
+const ESTADOS_MANUALES = [EstadoIdea.idea, EstadoIdea.guionada, EstadoIdea.grabada, EstadoIdea.editada] as const;
 const ETIQUETA_ESTADO_MANUAL: Record<(typeof ESTADOS_MANUALES)[number], string> = {
   idea: "Idea",
   guionada: "Guionada",
   grabada: "Grabada",
+  editada: "Editado",
 };
 
 /**
@@ -217,7 +218,7 @@ export default async function IdeaPage({
               : "rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-emerald-700"
           }
         >
-          {idea.publicadaEl ? "Desmarcar publicada (volver a ideas)" : "Marcar como publicada"}
+          {idea.publicadaEl ? "Publicado ✓ (volver a ideas)" : "Publicado"}
         </SubmitButton>
       </form>
 

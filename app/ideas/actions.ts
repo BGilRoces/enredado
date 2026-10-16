@@ -260,7 +260,7 @@ export async function eliminarArchivoIdea(id: string, archivoId: string): Promis
   revalidarIdeas();
 }
 
-const ESTADOS_MANUALES = [EstadoIdea.idea, EstadoIdea.guionada, EstadoIdea.grabada] as const;
+const ESTADOS_MANUALES = [EstadoIdea.idea, EstadoIdea.guionada, EstadoIdea.grabada, EstadoIdea.editada] as const;
 
 /** Para enDrive hay que pasar por marcarEnDrive (necesita el link) — acá sólo el resto de las transiciones. */
 export async function cambiarEstadoIdea(id: string, estado: (typeof ESTADOS_MANUALES)[number]): Promise<void> {

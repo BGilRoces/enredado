@@ -5,7 +5,7 @@ import type { Cuenta, EstadoPublicacion, Idea, Producto } from "@prisma/client";
 import { claseBadgeEstadoIdea, etiquetaEstadoIdea } from "./etiqueta-estado-idea";
 import { esAtrasada } from "@/lib/ideas/es-atrasada";
 import { mensajeDeError } from "@/lib/mensaje-de-error";
-import { eliminarIdea, marcarPublicada } from "@/app/ideas/actions";
+import { cambiarEstadoIdea, eliminarIdea, marcarPublicada } from "@/app/ideas/actions";
 import { claveDiaLocal, horaLocal } from "@/lib/zona-horaria";
 
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
@@ -29,6 +29,19 @@ export function IdeaFilaExpandible({ idea, ahora }: { idea: IdeaConRelaciones; a
     startTransition(async () => {
       try {
         await marcarPublicada(idea.id, !idea.publicadaEl);
+      } catch (err) {
+        setError(mensajeDeError(err));
+      }
+    });
+  }
+
+  // Alterna Editado ↔ Grabada. No aplica una vez que la idea está en Drive o publicada.
+  const puedeMarcarseEditada = !idea.publicadaEl && idea.estado !== "enDrive";
+  function alternarEditada() {
+    setError(null);
+    startTransition(async () => {
+      try {
+        await cambiarEstadoIdea(idea.id, idea.estado === "editada" ? "grabada" : "editada");
       } catch (err) {
         setError(mensajeDeError(err));
       }
@@ -126,6 +139,20 @@ export function IdeaFilaExpandible({ idea, ahora }: { idea: IdeaConRelaciones; a
               >
                 Editar
               </a>
+              {puedeMarcarseEditada && (
+                <button
+                  type="button"
+                  onClick={alternarEditada}
+                  disabled={eliminando}
+                  className={
+                    idea.estado === "editada"
+                      ? "rounded-lg border border-fuchsia-300 bg-fuchsia-50 px-3 py-1.5 text-xs font-medium text-fuchsia-700 shadow-sm transition-colors hover:bg-fuchsia-100 disabled:opacity-50"
+                      : "rounded-lg bg-fuchsia-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-fuchsia-700 disabled:opacity-50"
+                  }
+                >
+                  {idea.estado === "editada" ? "Editado ✓" : "Editado"}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={alternarPublicada}
@@ -136,7 +163,7 @@ export function IdeaFilaExpandible({ idea, ahora }: { idea: IdeaConRelaciones; a
                     : "rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-50"
                 }
               >
-                {idea.publicadaEl ? "Volver a ideas" : "Marcar como publicada"}
+                {idea.publicadaEl ? "Publicado ✓" : "Publicado"}
               </button>
               <button
                 type="button"

@@ -13,7 +13,7 @@ import { opcionesProducto, parsearFiltroProductos, whereProducto } from "@/lib/p
 // fresca, no cacheable en build time.
 export const dynamic = "force-dynamic";
 
-const ESTADOS = [EstadoIdea.idea, EstadoIdea.guionada, EstadoIdea.grabada, EstadoIdea.enDrive] as const;
+const ESTADOS = [EstadoIdea.idea, EstadoIdea.guionada, EstadoIdea.grabada, EstadoIdea.editada, EstadoIdea.enDrive] as const;
 
 export default async function IdeasPage({
   searchParams,

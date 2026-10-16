@@ -5,6 +5,7 @@ const ETIQUETAS: Record<EstadoIdea, string> = {
   idea: "Idea",
   guionada: "Guionada",
   grabada: "Grabada",
+  editada: "Editado",
   enDrive: "En Drive",
 };
 
@@ -13,6 +14,7 @@ const BADGES: Record<EstadoIdea, string> = {
   idea: "bg-zinc-100 text-zinc-600",
   guionada: "bg-sky-100 text-sky-700",
   grabada: "bg-violet-100 text-violet-700",
+  editada: "bg-fuchsia-100 text-fuchsia-700",
   enDrive: "bg-amber-100 text-amber-700",
 };
 
@@ -50,7 +52,7 @@ function publicadas(publicaciones: IdeaConEstado["publicaciones"]) {
 
 /** Lo que el panel publicó antes de ADR-0020 sigue mostrándose como "Publicada"; el resto de las Publicaciones ya no cuenta. */
 export function etiquetaEstadoIdea(idea: IdeaConEstado): string {
-  if (idea.publicadaEl) return "Publicada";
+  if (idea.publicadaEl) return "Publicado";
   const hechas = publicadas(idea.publicaciones);
   if (hechas.length > 0) return etiquetaEstado(hechas[0]);
   if (estaProgramadaEnIg(idea)) return "Programada en IG";

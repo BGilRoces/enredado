@@ -160,6 +160,7 @@ enum EstadoIdea {
   idea
   guionada
   grabada
+  editada
   // El usuario pegó el link de Drive del archivo ya subido — ver ADR-0013.
   enDrive
 }
