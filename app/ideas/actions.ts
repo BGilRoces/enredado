@@ -260,12 +260,16 @@ export async function eliminarArchivoIdea(id: string, archivoId: string): Promis
   revalidarIdeas();
 }
 
-const ESTADOS_MANUALES = [EstadoIdea.idea, EstadoIdea.guionada, EstadoIdea.grabada, EstadoIdea.editada] as const;
+const ESTADOS_MANUALES = [EstadoIdea.idea, EstadoIdea.guionada, EstadoIdea.grabada, EstadoIdea.editada, EstadoIdea.enDrive] as const;
 
-/** Para enDrive hay que pasar por marcarEnDrive (necesita el link) — acá sólo el resto de las transiciones. */
+/**
+ * Transiciones manuales de estado. "En Drive" no exige link: sirve para marcar
+ * que el archivo ya está listo aunque no se vaya a pegar el link acá (con
+ * link, marcarEnDrive además valida y carga los archivos).
+ */
 export async function cambiarEstadoIdea(id: string, estado: (typeof ESTADOS_MANUALES)[number]): Promise<void> {
   if (!ESTADOS_MANUALES.includes(estado)) {
-    throw new Error('Para pasar a "en Drive" hay que pegar el link del archivo o la carpeta.');
+    throw new Error("Estado no válido.");
   }
   const idea = await obtenerIdeaOTirar(id);
   asegurarNoPromocionada(idea);

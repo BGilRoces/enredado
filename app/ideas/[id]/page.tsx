@@ -28,12 +28,13 @@ export const dynamic = "force-dynamic";
 const INPUT_CLASS =
   "rounded-lg border border-zinc-300 p-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100";
 
-const ESTADOS_MANUALES = [EstadoIdea.idea, EstadoIdea.guionada, EstadoIdea.grabada, EstadoIdea.editada] as const;
+const ESTADOS_MANUALES = [EstadoIdea.idea, EstadoIdea.guionada, EstadoIdea.grabada, EstadoIdea.editada, EstadoIdea.enDrive] as const;
 const ETIQUETA_ESTADO_MANUAL: Record<(typeof ESTADOS_MANUALES)[number], string> = {
   idea: "Idea",
   guionada: "Guionada",
   grabada: "Grabada",
   editada: "Editado",
+  enDrive: "En Drive",
 };
 
 /**
@@ -249,7 +250,7 @@ export default async function IdeaPage({
           </div>
 
           <form action={guardarDrive} className="mt-2 flex flex-col gap-2">
-            <label className="text-sm font-medium text-zinc-700">Link de Drive (marca &quot;en Drive&quot;)</label>
+            <label className="text-sm font-medium text-zinc-700">Link de Drive (opcional; si lo pegás marca &quot;en Drive&quot;)</label>
             <p className="text-xs text-zinc-500">
               {idea.tipo === TipoPublicacion.reel
                 ? "Un Reel es un solo video: pegá el link del archivo puntual (\"Compartir\" → \"Copiar enlace\"), no el de una carpeta."
