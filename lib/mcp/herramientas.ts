@@ -360,6 +360,8 @@ export const herramientas: Herramienta[] = [
     schema: z.object({
       id: z.string().min(1),
       colaboradoraIds: z.array(cuentaId).optional().describe("Reemplaza las Cuentas en colab de la idea (lista vacía = sin colab). Omitilo para no tocarlas."),
+      agregarColaboradoraIds: z.array(cuentaId).optional().describe("Suma estas Cuentas al colab de la idea sin tocar las que ya tiene."),
+      quitarColaboradoraIds: z.array(cuentaId).optional().describe("Saca estas Cuentas del colab de la idea."),
       productoId: productoId.nullable().optional().describe("Producto de la idea; null = pasarla a general (de marca)."),
       titulo: textoLibre.titulo.optional(),
       descripcion: textoLibre.descripcion.nullable().optional(),
@@ -373,13 +375,26 @@ export const herramientas: Herramienta[] = [
       programadaPara: fecha.nullable().optional(),
     }),
     run: async (entrada) => {
-      const actual = await prisma.idea.findUnique({ where: { id: entrada.id } });
+      const actual = await prisma.idea.findUnique({
+        where: { id: entrada.id },
+        include: { colaboradoras: { select: { id: true } } },
+      });
       if (!actual) throw new Error("Idea no encontrada.");
+      if (entrada.colaboradoraIds && (entrada.agregarColaboradoraIds || entrada.quitarColaboradoraIds)) {
+        throw new Error("Pasá colaboradoraIds (reemplaza todo) o agregarColaboradoraIds/quitarColaboradoraIds, no los dos.");
+      }
+      let colaboradoraIds = entrada.colaboradoraIds;
+      if (entrada.agregarColaboradoraIds || entrada.quitarColaboradoraIds) {
+        const quitar = new Set(entrada.quitarColaboradoraIds ?? []);
+        colaboradoraIds = [
+          ...new Set([...actual.colaboradoras.map((c) => c.id), ...(entrada.agregarColaboradoraIds ?? [])]),
+        ].filter((id) => !quitar.has(id));
+      }
       if (entrada.driveLink && entrada.estado) {
         throw new Error("Pasá driveLink o estado, no los dos: driveLink ya deja la idea en enDrive.");
       }
 
-      const cambiaTexto = ["colaboradoraIds", "productoId", "titulo", "descripcion", "guion", "caption", "audio", "linkReferencia1", "linkReferencia2"].some(
+      const cambiaTexto = ["colaboradoraIds", "agregarColaboradoraIds", "quitarColaboradoraIds", "productoId", "titulo", "descripcion", "guion", "caption", "audio", "linkReferencia1", "linkReferencia2"].some(
         (campo) => campo in entrada && entrada[campo as keyof typeof entrada] !== undefined
       );
       if (cambiaTexto) {
@@ -387,7 +402,7 @@ export const herramientas: Herramienta[] = [
         const elegir = <T extends string | null | undefined>(nuevo: T | undefined, viejo: string | null) =>
           (nuevo === undefined ? viejo : nuevo) ?? undefined;
         await actualizarIdea(entrada.id, {
-          colaboradoraIds: entrada.colaboradoraIds,
+          colaboradoraIds,
           productoId: entrada.productoId,
           titulo: entrada.titulo ?? actual.titulo,
           descripcion: elegir(entrada.descripcion, actual.descripcion),
