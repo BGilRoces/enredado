@@ -5,7 +5,7 @@ import { obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
 import { FiltroCheckboxes } from "@/components/filtro-checkboxes";
 import { parsearSeleccionMultiple } from "@/lib/parsear-seleccion-multiple";
 import { IdeaFilaExpandible } from "@/components/idea-fila-expandible";
-import { ETIQUETAS_POR_ESTADO_IDEA } from "@/components/etiqueta-estado-idea";
+import { ESTADOS_LISTOS_PARA_PROGRAMAR, ETIQUETAS_POR_ESTADO_IDEA } from "@/components/etiqueta-estado-idea";
 import { AppShell } from "@/components/app-shell";
 import { opcionesProducto, parsearFiltroProductos, whereProducto } from "@/lib/productos/filtro";
 
@@ -59,7 +59,7 @@ export default async function IdeasPage({
       ...whereProducto(productosFiltro),
       ...(estadosFiltro ? { estado: { in: estadosFiltro } } : {}),
       ...(soloFaltaProgramar
-        ? { estado: EstadoIdea.enDrive, programadaPara: { not: null }, programadaEnIgEl: null }
+        ? { estado: { in: ESTADOS_LISTOS_PARA_PROGRAMAR }, programadaPara: { not: null }, programadaEnIgEl: null }
         : {}),
     },
     // Por fecha programada (las más próximas primero); las que no tienen fecha, al final.
@@ -93,7 +93,7 @@ export default async function IdeasPage({
               : "rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-700 transition-colors hover:bg-rose-50"
           }
         >
-          Falta programar en IG
+          Falta programar
         </a>
         <a
           href={verPublicadas ? "/ideas" : "/ideas?publicadas=1"}

@@ -22,6 +22,9 @@ const BADGE_PUBLICADA_A_MANO = "bg-emerald-600 text-white";
 const BADGE_PROGRAMADA_EN_IG = "bg-emerald-100 text-emerald-700";
 const BADGE_FALTA_PROGRAMAR = "bg-rose-100 text-rose-700";
 
+/** Estados desde los que la Idea ya está lista para cargarse en la app de Instagram (Editado o En Drive). */
+export const ESTADOS_LISTOS_PARA_PROGRAMAR: EstadoIdea[] = [EstadoIdea.editada, EstadoIdea.enDrive];
+
 export interface IdeaConEstado {
   estado: EstadoIdea;
   programadaPara: Date | null;
@@ -34,16 +37,16 @@ export interface IdeaConEstado {
 }
 
 /**
- * Una Idea `enDrive` con fecha es contenido listo: lo único que falta es
- * programarlo en la app de Instagram (ver ADR-0020). Sin fecha todavía no se
- * sabe cuándo, así que es sólo "En Drive".
+ * Una Idea editada o `enDrive` con fecha es contenido listo: lo único que falta
+ * es programarlo en la app de Instagram (ver ADR-0020). Sin fecha todavía no se
+ * sabe cuándo, así que es sólo "Editado"/"En Drive".
  */
 export function faltaProgramarEnIg(idea: Pick<IdeaConEstado, "estado" | "programadaPara" | "programadaEnIgEl">): boolean {
-  return idea.estado === EstadoIdea.enDrive && idea.programadaPara !== null && idea.programadaEnIgEl === null;
+  return ESTADOS_LISTOS_PARA_PROGRAMAR.includes(idea.estado) && idea.programadaPara !== null && idea.programadaEnIgEl === null;
 }
 
 function estaProgramadaEnIg(idea: IdeaConEstado): boolean {
-  return idea.estado === EstadoIdea.enDrive && idea.programadaEnIgEl !== null;
+  return ESTADOS_LISTOS_PARA_PROGRAMAR.includes(idea.estado) && idea.programadaEnIgEl !== null;
 }
 
 function publicadas(publicaciones: IdeaConEstado["publicaciones"]) {
@@ -56,7 +59,7 @@ export function etiquetaEstadoIdea(idea: IdeaConEstado): string {
   const hechas = publicadas(idea.publicaciones);
   if (hechas.length > 0) return etiquetaEstado(hechas[0]);
   if (estaProgramadaEnIg(idea)) return "Programada en IG";
-  if (faltaProgramarEnIg(idea)) return "Falta programar en IG";
+  if (faltaProgramarEnIg(idea)) return "Falta programar";
   return ETIQUETAS[idea.estado];
 }
 

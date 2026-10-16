@@ -1,4 +1,5 @@
-import { EstadoCuenta, EstadoIdea, EstadoPublicacion } from "@prisma/client";
+import { EstadoCuenta, EstadoPublicacion } from "@prisma/client";
+import { ESTADOS_LISTOS_PARA_PROGRAMAR } from "@/components/etiqueta-estado-idea";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/db/prisma";
 import { nombresCuentasIdea, whereCuentasIdea } from "@/lib/ideas/cuentas-de-idea";
@@ -43,7 +44,7 @@ export default async function DashboardPage() {
   // El panel no publica solo (ver ADR-0020): lo que importa es qué falta programar en la app de IG.
   const faltaProgramar = await prisma.idea.findMany({
     where: {
-      estado: EstadoIdea.enDrive,
+      estado: { in: ESTADOS_LISTOS_PARA_PROGRAMAR },
       programadaPara: { not: null },
       programadaEnIgEl: null,
       publicadaEl: null,
@@ -128,7 +129,7 @@ export default async function DashboardPage() {
           )}
 
           <section className="flex flex-col gap-3">
-            <h2 className="text-sm font-semibold text-zinc-900">Falta programar en Instagram</h2>
+            <h2 className="text-sm font-semibold text-zinc-900">Falta programar</h2>
             {faltaProgramar.length === 0 ? (
               <p className="text-sm text-zinc-500">No hay nada pendiente de programar en la app.</p>
             ) : (

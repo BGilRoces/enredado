@@ -6,7 +6,7 @@ import { asegurarAccesoAIdea, obtenerCuentaIdPermitida } from "@/lib/auth/cuenta
 import { nombresCuentasIdea } from "@/lib/ideas/cuentas-de-idea";
 import { esAtrasada } from "@/lib/ideas/es-atrasada";
 import { mensajeDeError } from "@/lib/mensaje-de-error";
-import { claseBadgeEstadoIdea, etiquetaEstadoIdea, faltaProgramarEnIg } from "@/components/etiqueta-estado-idea";
+import { ESTADOS_LISTOS_PARA_PROGRAMAR, claseBadgeEstadoIdea, etiquetaEstadoIdea, faltaProgramarEnIg } from "@/components/etiqueta-estado-idea";
 import { AppShell } from "@/components/app-shell";
 import { CarpetaIdeaArchivos } from "@/components/carpeta-idea-archivos";
 import { DriveMiniatura } from "@/components/drive-miniatura";
@@ -174,13 +174,13 @@ export default async function IdeaPage({
       )}
       {atrasada && (
         <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">
-          {idea.estado === "enDrive"
+          {ESTADOS_LISTOS_PARA_PROGRAMAR.includes(idea.estado)
             ? "Atrasada: la hora ya pasó y no la marcaste como programada en Instagram. Reprogramala o marcala si ya salió."
             : "Atrasada: la hora ya pasó y esta idea todavía no está \"en Drive\"."}
         </p>
       )}
 
-      {(idea.estado === "enDrive" && idea.programadaPara) && (
+      {(ESTADOS_LISTOS_PARA_PROGRAMAR.includes(idea.estado) && idea.programadaPara) && (
         <div
           className={`flex flex-col gap-2 rounded-2xl border p-4 ${
             faltaProgramar ? "border-rose-200 bg-rose-50" : "border-emerald-200 bg-emerald-50"
@@ -188,7 +188,7 @@ export default async function IdeaPage({
         >
           <p className={`text-sm font-medium ${faltaProgramar ? "text-rose-800" : "text-emerald-800"}`}>
             {faltaProgramar
-              ? "Falta programarla en Instagram"
+              ? "Falta programarla"
               : `Programada en Instagram (marcada el ${claveDiaLocal(idea.programadaEnIgEl!)})`}
           </p>
           <p className="text-xs text-zinc-600">

@@ -15,7 +15,7 @@ import {
   reordenarArchivosIdea,
 } from "@/app/ideas/actions";
 import { resolverLinkDrive } from "@/app/publicar/actions";
-import { faltaProgramarEnIg } from "@/components/etiqueta-estado-idea";
+import { ESTADOS_LISTOS_PARA_PROGRAMAR, faltaProgramarEnIg } from "@/components/etiqueta-estado-idea";
 import { mensajeDeError } from "@/lib/mensaje-de-error";
 import type { Herramienta } from "./protocolo";
 
@@ -213,7 +213,7 @@ export const herramientas: Herramienta[] = [
       soloGenerales: z.boolean().optional().describe("true = sólo las ideas generales (sin producto)."),
       tipo: tipo.optional(),
       sinFecha: z.boolean().optional().describe("true = sólo las que todavía no están calendarizadas."),
-      faltaProgramarEnIg: z.boolean().optional().describe("true = sólo las enDrive con fecha que todavía no se marcaron como programadas en la app de Instagram."),
+      faltaProgramarEnIg: z.boolean().optional().describe("true = sólo las editadas o enDrive con fecha que todavía no se marcaron como programadas en la app de Instagram."),
       publicadas: z.boolean().optional().describe("true = sólo las ya publicadas; por defecto las publicadas NO se listan (como en el panel)."),
       limite: limite(30),
     }),
@@ -227,7 +227,7 @@ export const herramientas: Herramienta[] = [
           ...(soloGenerales && !productoId && { productoId: null }),
           ...(tipo && { tipo }),
           ...(sinFecha && { programadaPara: null }),
-          ...(faltaProgramarEnIg && { estado: EstadoIdea.enDrive, programadaPara: { not: null }, programadaEnIgEl: null }),
+          ...(faltaProgramarEnIg && { estado: { in: ESTADOS_LISTOS_PARA_PROGRAMAR }, programadaPara: { not: null }, programadaEnIgEl: null }),
         },
         include: incluirResumen,
         orderBy: { actualizadaEn: "desc" },
@@ -302,7 +302,7 @@ export const herramientas: Herramienta[] = [
     title: "Crear idea (y opcionalmente dejarla lista para programar)",
     description: [
       "Crea una Idea en una Cuenta. Es la vía para TODO el contenido: post, carousel, historia o reel.",
-      "El panel NO publica en Instagram. Con `driveLink` + `programadaPara` la Idea queda lista y aparece como \"falta programar en IG\": el dueño la programa a mano en la app de Instagram (así puede elegir el audio de la biblioteca) y después se marca con marcar_programada_en_ig.",
+      "El panel NO publica en Instagram. Una Idea editada o enDrive (con `driveLink` o sin él) + `programadaPara` queda lista y aparece como \"falta programar\": el dueño la programa a mano en la app de Instagram (así puede elegir el audio de la biblioteca) y después se marca con marcar_programada_en_ig.",
       "- Post con link de ARCHIVO = una sola foto o video. Post con carpeta de Drive = carousel (2-10 archivos). Historia con archivo = una historia; con carpeta = una por archivo, en orden. Reel = un solo video (link de archivo, no de carpeta).",
       "- `audio`: nombre del audio de la biblioteca de IG a usar (canción – artista); es una nota para quien la programa en la app.",
       "- Sin `driveLink` la idea es sólo una nota; `programadaPara` sin `driveLink` es un recordatorio.",
@@ -488,7 +488,7 @@ export const INSTRUCCIONES = [
   "",
   "Flujo: listar_cuentas → crear_idea → (el dueño la programa en la app de IG) → marcar_programada_en_ig.",
   "",
-  "- Una Idea con `driveLink` + `programadaPara` queda lista y figura como \"falta programar en IG\" (listar_ideas con faltaProgramarEnIg=true). Cuando el usuario confirme que ya la programó en la app, llamá marcar_programada_en_ig.",
+  "- Una Idea editada o enDrive con `programadaPara` queda lista y figura como \"falta programar\" (listar_ideas con faltaProgramarEnIg=true). Cuando el usuario confirme que ya la programó en la app, llamá marcar_programada_en_ig.",
   "- Cuando la idea ya salió en Instagram, marcar_publicada la saca del listado (las publicadas no aparecen en listar_ideas salvo publicadas=true).",
   "- Una idea puede ser un colab entre varias Cuentas: `cuentaId` es la principal y `colaboradoraIds` las demás; aparece en la agenda y los filtros de todas. El producto, si hay, es de la Cuenta principal.",
   "- Cada Cuenta puede tener productos (ver listar_cuentas). Una idea se asocia a uno con `productoId`; sin producto es una idea general, de marca. Cuentas sin productos (ej.: software o servicios) sólo tienen ideas de marca.",
