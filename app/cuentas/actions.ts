@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { EstadoCuenta, EstadoPublicacion } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
-import { asegurarAccesoACuenta } from "@/lib/auth/cuenta-permitida";
+import { asegurarAccesoACuenta, obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
+import { redirect } from "next/navigation";
 
 /**
  * Desconecta una Cuenta: borra su token (ya no se puede publicar con ella)
@@ -45,8 +46,9 @@ export async function desconectarCuenta(id: string) {
 export async function eliminarCuenta(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
   await asegurarAccesoACuenta(id);
   const cuenta = await prisma.cuenta.findUniqueOrThrow({ where: { id } });
-  if (cuenta.estado !== EstadoCuenta.desconectada) {
-    return { ok: false, error: "Sólo se pueden eliminar Cuentas desconectadas." };
+  const esManual = cuenta.estado === EstadoCuenta.conectada && !cuenta.accessTokenEncriptado;
+  if (cuenta.estado !== EstadoCuenta.desconectada && !esManual) {
+    return { ok: false, error: "Sólo se pueden eliminar Cuentas desconectadas o manuales." };
   }
 
   const [publicaciones, ideas] = await Promise.all([
@@ -62,4 +64,34 @@ export async function eliminarCuenta(id: string): Promise<{ ok: true } | { ok: f
   await prisma.cuenta.delete({ where: { id } });
   revalidatePath("/cuentas");
   return { ok: true };
+}
+
+/**
+ * Alta de una Cuenta "manual": sin OAuth con Meta ni token, porque el panel ya
+ * no publica en Instagram (se programa a mano en la app). `igUserId` es
+ * @unique, así que se rellena con un id sintético que no puede chocar con uno
+ * real de Meta (numérico). Una Cuenta conectada sin token es "manual".
+ * Va por redirect con `?error=` (como el callback de Meta) en vez de tirar,
+ * por el mismo motivo que eliminarCuenta.
+ */
+export async function crearCuentaManual(formData: FormData) {
+  if (await obtenerCuentaIdPermitida()) {
+    redirect("/cuentas?error=" + encodeURIComponent("No tenés permiso para agregar Cuentas."));
+  }
+  const nombre = String(formData.get("nombre") ?? "").trim();
+  const igUsername = String(formData.get("igUsername") ?? "").trim().replace(/^@/, "");
+  if (!nombre) {
+    redirect("/cuentas?error=" + encodeURIComponent("El nombre no puede estar vacío."));
+  }
+  await prisma.cuenta.create({
+    data: {
+      nombre,
+      igUsername: igUsername || nombre,
+      igUserId: `manual-${crypto.randomUUID()}`,
+      estado: EstadoCuenta.conectada,
+    },
+  });
+  revalidatePath("/cuentas");
+  revalidatePath("/ideas/nueva");
+  redirect("/cuentas");
 }
