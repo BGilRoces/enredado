@@ -119,15 +119,22 @@ export function IdeaFilaExpandible({ idea, ahora }: { idea: IdeaConRelaciones; a
                 ))}
               </div>
             )}
-            <div className="flex items-center justify-between gap-2">
-              <a href={`/ideas/${idea.id}`} className="text-xs font-medium text-indigo-600 hover:text-indigo-700">
-                Editar →
+            <div className="flex flex-wrap items-center gap-2 border-t border-zinc-100 pt-3">
+              <a
+                href={`/ideas/${idea.id}`}
+                className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-zinc-800"
+              >
+                Editar
               </a>
               <button
                 type="button"
                 onClick={alternarPublicada}
                 disabled={eliminando}
-                className="text-xs font-medium text-emerald-700 hover:text-emerald-800 disabled:opacity-50"
+                className={
+                  idea.publicadaEl
+                    ? "rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 disabled:opacity-50"
+                    : "rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-50"
+                }
               >
                 {idea.publicadaEl ? "Volver a ideas" : "Marcar como publicada"}
               </button>
@@ -135,7 +142,7 @@ export function IdeaFilaExpandible({ idea, ahora }: { idea: IdeaConRelaciones; a
                 type="button"
                 onClick={eliminar}
                 disabled={eliminando}
-                className="text-xs font-medium text-rose-600 hover:text-rose-700 disabled:opacity-50"
+                className="ml-auto rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 shadow-sm transition-colors hover:bg-rose-50 disabled:opacity-50"
               >
                 {eliminando ? "Eliminando…" : "Eliminar"}
               </button>
