@@ -2,7 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import { EstadoIdea, TipoPublicacion } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { aInputDatetimeLocal, claveDiaLocal, desdeHoraLocal } from "@/lib/zona-horaria";
-import { asegurarAccesoACuenta } from "@/lib/auth/cuenta-permitida";
+import { asegurarAccesoAIdea, obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
+import { nombresCuentasIdea } from "@/lib/ideas/cuentas-de-idea";
 import { esAtrasada } from "@/lib/ideas/es-atrasada";
 import { mensajeDeError } from "@/lib/mensaje-de-error";
 import { claseBadgeEstadoIdea, etiquetaEstadoIdea, faltaProgramarEnIg } from "@/components/etiqueta-estado-idea";
@@ -69,13 +70,24 @@ export default async function IdeaPage({
     where: { id },
     include: {
       cuenta: { include: { productos: { orderBy: { nombre: "asc" } } } },
+      colaboradoras: true,
       producto: true,
       publicaciones: { orderBy: { creadaEn: "asc" } },
       archivos: { orderBy: { orden: "asc" } },
     },
   });
   if (!idea) notFound();
-  await asegurarAccesoACuenta(idea.cuentaId);
+  await asegurarAccesoAIdea(idea);
+  const cuentaIdPermitida = await obtenerCuentaIdPermitida();
+  // Un colaborador restringido sólo puede sumar colab con su propia Cuenta.
+  const otrasCuentas = (
+    await prisma.cuenta.findMany({
+      where: { id: { not: idea.cuentaId }, ...(cuentaIdPermitida ? { id: { in: [cuentaIdPermitida] } } : {}) },
+      orderBy: { nombre: "asc" },
+      select: { id: true, nombre: true },
+    })
+  ).filter((c) => c.id !== idea.cuentaId);
+  const colaboradoraIdsActuales = new Set(idea.colaboradoras.map((c) => c.id));
 
   // Sólo lo que el panel publicó antes de ADR-0020 congela la Idea.
   const promocionada = idea.publicaciones.some((p) => p.estado === "publicada");
@@ -91,6 +103,7 @@ export default async function IdeaPage({
     try {
       await actualizarIdea(id, {
         productoId: String(formData.get("productoId") ?? "") || null,
+        colaboradoraIds: formData.getAll("colaboradoraIds").map(String),
         titulo: String(formData.get("titulo") ?? ""),
         descripcion: String(formData.get("descripcion") ?? ""),
         guion: String(formData.get("guion") ?? ""),
@@ -145,7 +158,7 @@ export default async function IdeaPage({
         </span>
       </div>
       <p className="text-sm text-zinc-500">
-        {idea.cuenta.nombre} · {idea.producto?.nombre ?? "General"} · {idea.tipo}
+        {nombresCuentasIdea(idea)} · {idea.producto?.nombre ?? "General"} · {idea.tipo}
       </p>
       {typeof error === "string" && (
         <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>
@@ -283,6 +296,23 @@ export default async function IdeaPage({
               ))}
             </select>
           </>
+        )}
+        {otrasCuentas.length > 0 && (
+          <fieldset className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-zinc-700">
+            <legend className="sr-only">Colabora con</legend>
+            <span className="text-sm font-medium text-zinc-700">Colab con:</span>
+            {otrasCuentas.map((cuenta) => (
+              <label key={cuenta.id} className="flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  name="colaboradoraIds"
+                  value={cuenta.id}
+                  defaultChecked={colaboradoraIdsActuales.has(cuenta.id)}
+                />
+                {cuenta.nombre}
+              </label>
+            ))}
+          </fieldset>
         )}
         <input name="titulo" required defaultValue={idea.titulo} placeholder="Título" className={INPUT_CLASS} />
         <textarea

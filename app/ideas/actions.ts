@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { EstadoIdea, EstadoPublicacion, TipoPublicacion, type Idea, type Publicacion } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
-import { asegurarAccesoACuenta } from "@/lib/auth/cuenta-permitida";
+import { asegurarAccesoACuenta, asegurarAccesoAIdea } from "@/lib/auth/cuenta-permitida";
 import { esFormatoMediaSoportado } from "@/lib/publicador/preparar-archivo";
 import { MAX_ARCHIVOS_CAROUSEL } from "@/lib/publicador/limites";
 import { parsearDriveFolderId, parsearDriveLink } from "@/lib/ideas/parsear-drive-file-id";
@@ -24,10 +24,10 @@ function revalidarIdeas() {
 async function obtenerIdeaOTirar(id: string): Promise<IdeaConPublicaciones> {
   const idea = await prisma.idea.findUnique({
     where: { id },
-    include: { publicaciones: { select: { id: true, estado: true } } },
+    include: { publicaciones: { select: { id: true, estado: true } }, colaboradoras: { select: { id: true } } },
   });
   if (!idea) throw new Error("Idea no encontrada.");
-  await asegurarAccesoACuenta(idea.cuentaId);
+  await asegurarAccesoAIdea(idea);
   return idea;
 }
 
@@ -48,8 +48,19 @@ async function validarProducto(cuentaId: string, productoId: string | null | und
   return producto.id;
 }
 
+/** Ids únicos y existentes, sin la Cuenta principal (no puede colaborar consigo misma). */
+async function validarColaboradoras(cuentaId: string, ids: string[] | undefined): Promise<string[]> {
+  const unicos = [...new Set(ids ?? [])].filter((id) => id !== cuentaId);
+  if (unicos.length === 0) return [];
+  const existentes = await prisma.cuenta.count({ where: { id: { in: unicos } } });
+  if (existentes !== unicos.length) throw new Error("Alguna de las Cuentas colaboradoras no existe.");
+  return unicos;
+}
+
 export interface CrearIdeaInput {
   cuentaId: string;
+  /** Otras Cuentas que participan en colab; sin valor = idea de una sola Cuenta. */
+  colaboradoraIds?: string[];
   /** Sin valor = idea general (de marca). */
   productoId?: string | null;
   titulo: string;
@@ -69,10 +80,12 @@ export async function crearIdea(input: CrearIdeaInput): Promise<string> {
   if (!input.titulo.trim()) throw new Error("El título no puede estar vacío.");
 
   const productoId = await validarProducto(cuenta.id, input.productoId);
+  const colaboradoraIds = await validarColaboradoras(cuenta.id, input.colaboradoraIds);
 
   const idea = await prisma.idea.create({
     data: {
       cuentaId: cuenta.id,
+      colaboradoras: { connect: colaboradoraIds.map((id) => ({ id })) },
       productoId,
       titulo: input.titulo.trim(),
       tipo: input.tipo,
@@ -90,6 +103,8 @@ export async function crearIdea(input: CrearIdeaInput): Promise<string> {
 }
 
 export interface ActualizarIdeaInput {
+  /** `undefined` = no tocar; lista = reemplaza las Cuentas colaboradoras (vacía = sin colab). */
+  colaboradoraIds?: string[];
   /** `undefined` = no tocar; `null` = pasar a idea general (de marca). */
   productoId?: string | null;
   titulo: string;
@@ -109,10 +124,14 @@ export async function actualizarIdea(id: string, data: ActualizarIdeaInput): Pro
   if (!data.titulo.trim()) throw new Error("El título no puede estar vacío.");
   const productoId = data.productoId === undefined ? undefined : await validarProducto(idea.cuentaId, data.productoId);
 
+  const colaboradoraIds =
+    data.colaboradoraIds === undefined ? undefined : await validarColaboradoras(idea.cuentaId, data.colaboradoraIds);
+
   await prisma.idea.update({
     where: { id },
     data: {
       ...(productoId !== undefined && { productoId }),
+      ...(colaboradoraIds !== undefined && { colaboradoras: { set: colaboradoraIds.map((id) => ({ id })) } }),
       titulo: data.titulo.trim(),
       descripcion: data.descripcion || null,
       guion: data.guion || null,

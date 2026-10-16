@@ -1,5 +1,6 @@
 import { EstadoIdea } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
+import { whereCuentasIdea } from "@/lib/ideas/cuentas-de-idea";
 import { obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
 import { FiltroCheckboxes } from "@/components/filtro-checkboxes";
 import { parsearSeleccionMultiple } from "@/lib/parsear-seleccion-multiple";
@@ -49,11 +50,7 @@ export default async function IdeasPage({
 
   const ideas = await prisma.idea.findMany({
     where: {
-      ...(cuentaIdPermitida
-        ? { cuentaId: cuentaIdPermitida }
-        : cuentasFiltro
-          ? { cuentaId: { in: cuentasFiltro } }
-          : {}),
+      ...whereCuentasIdea(cuentaIdPermitida ? [cuentaIdPermitida] : cuentasFiltro),
       ...whereProducto(productosFiltro),
       ...(estadosFiltro ? { estado: { in: estadosFiltro } } : {}),
       ...(soloFaltaProgramar
@@ -61,7 +58,7 @@ export default async function IdeasPage({
         : {}),
     },
     orderBy: { creadaEn: "desc" },
-    include: { cuenta: true, producto: true, publicaciones: { select: { estado: true, programadaPara: true } } },
+    include: { cuenta: true, colaboradoras: true, producto: true, publicaciones: { select: { estado: true, programadaPara: true } } },
   });
 
   const ahora = new Date();

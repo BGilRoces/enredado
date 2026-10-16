@@ -41,6 +41,7 @@ export default async function NuevaIdeaPage({
       await crearIdea({
         cuentaId: String(formData.get("cuentaId") ?? ""),
         productoId: String(formData.get("productoId") ?? "") || null,
+        colaboradoraIds: formData.getAll("colaboradoraIds").map(String),
         titulo: String(formData.get("titulo") ?? ""),
         tipo: String(formData.get("tipo") ?? "post") as TipoPublicacion,
         descripcion: String(formData.get("descripcion") ?? ""),

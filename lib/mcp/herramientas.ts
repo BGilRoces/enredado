@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { EstadoIdea, Prisma, TipoPublicacion } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
+import { whereCuentasIdea } from "@/lib/ideas/cuentas-de-idea";
 import {
   actualizarIdea,
   calendarizarIdea,
@@ -53,6 +54,7 @@ const textoLibre = {
 
 const incluirResumen = {
   cuenta: { select: { id: true, nombre: true, igUsername: true } },
+  colaboradoras: { select: { id: true, nombre: true, igUsername: true } },
   producto: { select: { id: true, nombre: true } },
   publicaciones: { select: { id: true, estado: true, error: true, publicadaEn: true } },
   _count: { select: { archivos: true } },
@@ -64,6 +66,7 @@ function resumenIdea(idea: IdeaResumen) {
   return {
     id: idea.id,
     cuenta: idea.cuenta,
+    colaboradoras: idea.colaboradoras,
     producto: idea.producto,
     titulo: idea.titulo,
     tipo: idea.tipo,
@@ -170,7 +173,7 @@ export const herramientas: Herramienta[] = [
       const rango = { gte: new Date(desde), lte: new Date(hasta) };
       const [ideas, sueltas] = await Promise.all([
         prisma.idea.findMany({
-          where: { programadaPara: rango, ...(cuentaId && { cuentaId }) },
+          where: { programadaPara: rango, ...whereCuentasIdea(cuentaId ? [cuentaId] : null) },
           include: incluirResumen,
           orderBy: { programadaPara: "asc" },
           take: 100,
@@ -215,7 +218,7 @@ export const herramientas: Herramienta[] = [
     run: async ({ cuentaId, estado, productoId, soloGenerales, tipo, sinFecha, faltaProgramarEnIg, limite }) => {
       const ideas = await prisma.idea.findMany({
         where: {
-          ...(cuentaId && { cuentaId }),
+          ...whereCuentasIdea(cuentaId ? [cuentaId] : null),
           ...(estado && { estado }),
           ...(productoId && { productoId }),
           ...(soloGenerales && !productoId && { productoId: null }),
@@ -303,6 +306,7 @@ export const herramientas: Herramienta[] = [
     ].join("\n"),
     schema: z.object({
       cuentaId,
+      colaboradoraIds: z.array(cuentaId).optional().describe("Otras Cuentas que participan en colab en esta idea (además de cuentaId, la principal). Omitilo para una idea de una sola Cuenta."),
       productoId: productoId.optional().describe("Producto de la Cuenta al que pertenece la idea; omitilo para una idea general (de marca)."),
       tipo,
       titulo: textoLibre.titulo,
@@ -318,6 +322,7 @@ export const herramientas: Herramienta[] = [
     run: async (entrada) => {
       const id = await crearIdea({
         cuentaId: entrada.cuentaId,
+        colaboradoraIds: entrada.colaboradoraIds,
         productoId: entrada.productoId,
         titulo: entrada.titulo,
         tipo: entrada.tipo as TipoPublicacion,
@@ -354,6 +359,7 @@ export const herramientas: Herramienta[] = [
     ].join("\n"),
     schema: z.object({
       id: z.string().min(1),
+      colaboradoraIds: z.array(cuentaId).optional().describe("Reemplaza las Cuentas en colab de la idea (lista vacía = sin colab). Omitilo para no tocarlas."),
       productoId: productoId.nullable().optional().describe("Producto de la idea; null = pasarla a general (de marca)."),
       titulo: textoLibre.titulo.optional(),
       descripcion: textoLibre.descripcion.nullable().optional(),
@@ -373,7 +379,7 @@ export const herramientas: Herramienta[] = [
         throw new Error("Pasá driveLink o estado, no los dos: driveLink ya deja la idea en enDrive.");
       }
 
-      const cambiaTexto = ["productoId", "titulo", "descripcion", "guion", "caption", "audio", "linkReferencia1", "linkReferencia2"].some(
+      const cambiaTexto = ["colaboradoraIds", "productoId", "titulo", "descripcion", "guion", "caption", "audio", "linkReferencia1", "linkReferencia2"].some(
         (campo) => campo in entrada && entrada[campo as keyof typeof entrada] !== undefined
       );
       if (cambiaTexto) {
@@ -381,6 +387,7 @@ export const herramientas: Herramienta[] = [
         const elegir = <T extends string | null | undefined>(nuevo: T | undefined, viejo: string | null) =>
           (nuevo === undefined ? viejo : nuevo) ?? undefined;
         await actualizarIdea(entrada.id, {
+          colaboradoraIds: entrada.colaboradoraIds,
           productoId: entrada.productoId,
           titulo: entrada.titulo ?? actual.titulo,
           descripcion: elegir(entrada.descripcion, actual.descripcion),
@@ -450,6 +457,7 @@ export const INSTRUCCIONES = [
   "Flujo: listar_cuentas → crear_idea → (el dueño la programa en la app de IG) → marcar_programada_en_ig.",
   "",
   "- Una Idea con `driveLink` + `programadaPara` queda lista y figura como \"falta programar en IG\" (listar_ideas con faltaProgramarEnIg=true). Cuando el usuario confirme que ya la programó en la app, llamá marcar_programada_en_ig.",
+  "- Una idea puede ser un colab entre varias Cuentas: `cuentaId` es la principal y `colaboradoraIds` las demás; aparece en la agenda y los filtros de todas. El producto, si hay, es de la Cuenta principal.",
   "- Cada Cuenta puede tener productos (ver listar_cuentas). Una idea se asocia a uno con `productoId`; sin producto es una idea general, de marca. Cuentas sin productos (ej.: software o servicios) sólo tienen ideas de marca.",
   "- `audio` es el nombre del audio de IG a usar; sirve de recordatorio para quien programa en la app.",
   "- El archivo tiene que estar en Google Drive; el panel no recibe archivos. Pasá el link de compartir del archivo o de la carpeta.",

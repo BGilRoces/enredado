@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import { nombresCuentasIdea, whereCuentasIdea } from "@/lib/ideas/cuentas-de-idea";
 import { obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
 import { mesEnGrilla } from "@/lib/calendario/mes-en-grilla";
 import { claveDiaLocal, inicioDeDiaLocal } from "@/lib/zona-horaria";
@@ -70,13 +71,9 @@ export default async function CalendarioPage({
     where: {
       programadaPara: { gte: desde, lt: hasta },
       ...whereProducto(productosFiltro),
-      ...(cuentaIdPermitida
-        ? { cuentaId: cuentaIdPermitida }
-        : cuentasFiltro
-          ? { cuentaId: { in: cuentasFiltro } }
-          : {}),
+      ...whereCuentasIdea(cuentaIdPermitida ? [cuentaIdPermitida] : cuentasFiltro),
     },
-    include: { cuenta: true, producto: true, publicaciones: { select: { estado: true, programadaPara: true } } },
+    include: { cuenta: true, colaboradoras: true, producto: true, publicaciones: { select: { estado: true, programadaPara: true } } },
   });
 
   const ideasPorDia: Record<string, IdeaEnCalendario[]> = {};
@@ -86,7 +83,7 @@ export default async function CalendarioPage({
     lista.push({
       id: idea.id,
       titulo: idea.titulo,
-      cuentaNombre: idea.cuenta.nombre,
+      cuentaNombre: nombresCuentasIdea(idea),
       productoNombre: idea.producto?.nombre ?? null,
       tipo: idea.tipo,
       estado: idea.estado,
@@ -102,20 +99,16 @@ export default async function CalendarioPage({
     where: {
       programadaPara: null,
       ...whereProducto(productosFiltro),
-      ...(cuentaIdPermitida
-        ? { cuentaId: cuentaIdPermitida }
-        : cuentasFiltro
-          ? { cuentaId: { in: cuentasFiltro } }
-          : {}),
+      ...whereCuentasIdea(cuentaIdPermitida ? [cuentaIdPermitida] : cuentasFiltro),
     },
     orderBy: { creadaEn: "desc" },
-    include: { cuenta: true, producto: true, publicaciones: { select: { estado: true, programadaPara: true } } },
+    include: { cuenta: true, colaboradoras: true, producto: true, publicaciones: { select: { estado: true, programadaPara: true } } },
   });
 
   const ideasPendientesEnCalendario: IdeaEnCalendario[] = ideasPendientes.map((idea) => ({
     id: idea.id,
     titulo: idea.titulo,
-    cuentaNombre: idea.cuenta.nombre,
+    cuentaNombre: nombresCuentasIdea(idea),
     productoNombre: idea.producto?.nombre ?? null,
     tipo: idea.tipo,
     estado: idea.estado,

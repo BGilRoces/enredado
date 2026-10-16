@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import type { Cuenta, EstadoPublicacion, Idea, Producto } from "@prisma/client";
 import { claseBadgeEstadoIdea, etiquetaEstadoIdea } from "./etiqueta-estado-idea";
+import { nombresCuentasIdea } from "@/lib/ideas/cuentas-de-idea";
 import { esAtrasada } from "@/lib/ideas/es-atrasada";
 import { mensajeDeError } from "@/lib/mensaje-de-error";
 import { eliminarIdea } from "@/app/ideas/actions";
@@ -10,6 +11,7 @@ import { formatearFechaHora } from "@/lib/zona-horaria";
 
 type IdeaConRelaciones = Idea & {
   cuenta: Cuenta;
+  colaboradoras: Cuenta[];
   producto: Producto | null;
   publicaciones: { estado: EstadoPublicacion; programadaPara: Date | null }[];
 };
@@ -45,7 +47,7 @@ export function IdeaFilaExpandible({ idea, ahora }: { idea: IdeaConRelaciones; a
           <span className="font-medium text-zinc-900">
             {idea.titulo}
             <span className="ml-2 font-normal text-zinc-500">
-              {idea.cuenta.nombre}{idea.producto ? ` · ${idea.producto.nombre}` : ""} · {idea.tipo}
+              {nombresCuentasIdea(idea)}{idea.producto ? ` · ${idea.producto.nombre}` : ""} · {idea.tipo}
             </span>
           </span>
           <span className="flex shrink-0 items-center gap-1">

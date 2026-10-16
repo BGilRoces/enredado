@@ -1,6 +1,7 @@
 import { EstadoCuenta, EstadoIdea, EstadoPublicacion } from "@prisma/client";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/db/prisma";
+import { nombresCuentasIdea, whereCuentasIdea } from "@/lib/ideas/cuentas-de-idea";
 import { formatearFechaHora } from "@/lib/zona-horaria";
 import { obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
 import { AppShell } from "@/components/app-shell";
@@ -41,10 +42,15 @@ export default async function DashboardPage() {
 
   // El panel no publica solo (ver ADR-0020): lo que importa es qué falta programar en la app de IG.
   const faltaProgramar = await prisma.idea.findMany({
-    where: { estado: EstadoIdea.enDrive, programadaPara: { not: null }, programadaEnIgEl: null, ...filtroCuenta },
+    where: {
+      estado: EstadoIdea.enDrive,
+      programadaPara: { not: null },
+      programadaEnIgEl: null,
+      ...whereCuentasIdea(cuentaIdPermitida ? [cuentaIdPermitida] : null),
+    },
     orderBy: { programadaPara: "asc" },
     take: 10,
-    include: { cuenta: true },
+    include: { cuenta: true, colaboradoras: true },
   });
 
   const actividadReciente = await prisma.publicacion.findMany({
@@ -134,7 +140,7 @@ export default async function DashboardPage() {
                     >
                       <span className="font-medium text-zinc-900">{idea.titulo}</span>
                       <span className="text-xs text-zinc-500">
-                        {idea.cuenta.nombre} · {idea.tipo} · {formatearFechaHora(idea.programadaPara!)}
+                        {nombresCuentasIdea(idea)} · {idea.tipo} · {formatearFechaHora(idea.programadaPara!)}
                         {idea.audio ? ` · Audio: ${idea.audio}` : ""}
                       </span>
                     </a>

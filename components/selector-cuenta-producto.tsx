@@ -42,6 +42,21 @@ export function SelectorCuentaProducto({ cuentas }: { cuentas: CuentaOpcion[] })
           ))}
         </select>
       )}
+      {cuentas.length > 1 && (
+        <fieldset className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 text-sm text-zinc-700">
+          <legend className="sr-only">Colabora con</legend>
+          <span className="text-xs font-medium text-zinc-500">Colab con:</span>
+          {/* key: al cambiar la Cuenta principal se destildan, para no arrastrar una que ahora es la principal. */}
+          {cuentas
+            .filter((cuenta) => cuenta.id !== cuentaId)
+            .map((cuenta) => (
+              <label key={`${cuentaId}-${cuenta.id}`} className="flex items-center gap-1">
+                <input type="checkbox" name="colaboradoraIds" value={cuenta.id} />
+                {cuenta.nombre}
+              </label>
+            ))}
+        </fieldset>
+      )}
     </>
   );
 }

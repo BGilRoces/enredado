@@ -38,7 +38,9 @@ model Cuenta {
   creadaEn               DateTime      @default(now())
   actualizadaEn          DateTime      @updatedAt
   publicaciones          Publicacion[]
-  ideas                  Idea[]
+  ideas                  Idea[]            @relation("IdeaCuenta")
+  // Ideas en colab donde esta Cuenta participa sin ser la principal.
+  ideasColaboradas       Idea[]            @relation("IdeaColaboradoras")
   productos              Producto[]
 }
 
@@ -172,7 +174,10 @@ enum EstadoIdea {
 model Idea {
   id               String          @id @default(cuid())
   cuentaId         String
-  cuenta           Cuenta          @relation(fields: [cuentaId], references: [id])
+  cuenta           Cuenta          @relation("IdeaCuenta", fields: [cuentaId], references: [id])
+  // Cuentas que participan en colab además de la principal (`cuenta`): la
+  // Idea figura en las dos. Vacío = idea de una sola Cuenta.
+  colaboradoras    Cuenta[]        @relation("IdeaColaboradoras")
   // Null = idea general (de marca, no de un producto puntual). Si el
   // Producto se borra, la Idea pasa a general en vez de borrarse.
   productoId       String?
