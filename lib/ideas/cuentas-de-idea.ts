@@ -21,3 +21,15 @@ export function whereCuentasIdea(cuentaIds: string[] | null): Prisma.IdeaWhereIn
 export function nombresCuentasIdea(idea: { cuenta: { nombre: string }; colaboradoras?: { nombre: string }[] }): string {
   return [idea.cuenta.nombre, ...(idea.colaboradoras ?? []).map((c) => c.nombre)].join(" + ");
 }
+
+/**
+ * "Publicada" = la marcó el dueño (`publicadaEl`) o la publicó el panel antes
+ * de ADR-0020 (tiene una Publicación `publicada`). /ideas muestra sólo las
+ * que no lo están, o sólo las que sí con `soloPublicadas`.
+ */
+export function wherePublicadaIdea(soloPublicadas: boolean): Prisma.IdeaWhereInput {
+  const publicadaPorPanel: Prisma.IdeaWhereInput = { publicaciones: { some: { estado: "publicada" } } };
+  return soloPublicadas
+    ? { OR: [{ publicadaEl: { not: null } }, publicadaPorPanel] }
+    : { publicadaEl: null, NOT: publicadaPorPanel };
+}

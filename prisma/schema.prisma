@@ -204,6 +204,9 @@ model Idea {
   // mano en la app de IG. Con valor = ya la programó ahí (la marca el dueño o
   // Claude por MCP); null y enDrive con fecha = "falta programar en IG".
   programadaEnIgEl DateTime?
+  // Con valor = la Idea ya salió en Instagram: deja de listarse en /ideas (queda
+  // en "Ver publicadas"). La marca el dueño o Claude por MCP; el panel no publica.
+  publicadaEl      DateTime?
   // Nombre del audio de la biblioteca de IG a usar al programarla en la app
   // (la API oficial no deja elegirlo, por eso la programación es manual).
   audio            String?

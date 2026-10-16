@@ -1,6 +1,6 @@
 import { EstadoIdea } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
-import { whereCuentasIdea } from "@/lib/ideas/cuentas-de-idea";
+import { whereCuentasIdea, wherePublicadaIdea } from "@/lib/ideas/cuentas-de-idea";
 import { obtenerCuentaIdPermitida } from "@/lib/auth/cuenta-permitida";
 import { FiltroCheckboxes } from "@/components/filtro-checkboxes";
 import { parsearSeleccionMultiple } from "@/lib/parsear-seleccion-multiple";
@@ -47,10 +47,15 @@ export default async function IdeasPage({
   );
   const estadosFiltro = parsearSeleccionMultiple(params.estado, ESTADOS);
   const soloFaltaProgramar = params.faltaIg === "1";
+  const verPublicadas = params.publicadas === "1";
 
   const ideas = await prisma.idea.findMany({
     where: {
-      ...whereCuentasIdea(cuentaIdPermitida ? [cuentaIdPermitida] : cuentasFiltro),
+      // Un solo AND con todo: whereCuentasIdea y wherePublicadaIdea usan OR/AND y no se pueden spreadear juntos.
+      AND: [
+        whereCuentasIdea(cuentaIdPermitida ? [cuentaIdPermitida] : cuentasFiltro),
+        wherePublicadaIdea(verPublicadas),
+      ],
       ...whereProducto(productosFiltro),
       ...(estadosFiltro ? { estado: { in: estadosFiltro } } : {}),
       ...(soloFaltaProgramar
@@ -89,6 +94,16 @@ export default async function IdeasPage({
           }
         >
           Falta programar en IG
+        </a>
+        <a
+          href={verPublicadas ? "/ideas" : "/ideas?publicadas=1"}
+          className={
+            verPublicadas
+              ? "rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white"
+              : "rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-50"
+          }
+        >
+          {verPublicadas ? "Volver a las ideas" : "Ver publicadas"}
         </a>
         <FiltroCheckboxes
           name="cuentaId"

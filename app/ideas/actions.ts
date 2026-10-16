@@ -311,6 +311,17 @@ export async function marcarProgramadaEnIg(id: string, programada: boolean): Pro
   revalidatePath("/");
 }
 
+/**
+ * Marca (o desmarca) la Idea como publicada en Instagram: sale del listado de
+ * /ideas y queda en "Ver publicadas". No publica nada (ver ADR-0020).
+ */
+export async function marcarPublicada(id: string, publicada: boolean): Promise<void> {
+  await obtenerIdeaOTirar(id);
+  await prisma.idea.update({ where: { id }, data: { publicadaEl: publicada ? new Date() : null } });
+  revalidarIdeas();
+  revalidatePath("/");
+}
+
 /** Borra la Idea; lo ya publicado en Instagram y el historial de Publicaciones no se tocan (se desvinculan). */
 export async function eliminarIdea(id: string): Promise<void> {
   await obtenerIdeaOTirar(id);

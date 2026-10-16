@@ -16,6 +16,7 @@ import {
   actualizarIdea,
   calendarizarIdea,
   cambiarEstadoIdea,
+  marcarPublicada,
   descalendarizarIdea,
   eliminarIdea,
   marcarEnDrive,
@@ -93,6 +94,7 @@ export default async function IdeaPage({
   const promocionada = idea.publicaciones.some((p) => p.estado === "publicada");
   const faltaProgramar = faltaProgramarEnIg(idea);
   const marcarComoProgramada = idea.programadaEnIgEl === null;
+  const marcarComoPublicada = idea.publicadaEl === null;
   const atrasada = esAtrasada(new Date(), { ...idea, yaPromocionada: promocionada });
 
   async function guardar(formData: FormData) {
@@ -129,6 +131,11 @@ export default async function IdeaPage({
     await conManejoDeError(id, () =>
       valor ? calendarizarIdea(id, desdeHoraLocal(valor)) : descalendarizarIdea(id)
     );
+  }
+
+  async function alternarPublicada() {
+    "use server";
+    await conManejoDeError(id, () => marcarPublicada(id, marcarComoPublicada));
   }
 
   async function alternarProgramadaEnIg() {
@@ -200,6 +207,19 @@ export default async function IdeaPage({
           </form>
         </div>
       )}
+
+      <form action={alternarPublicada}>
+        <SubmitButton
+          pendingText="Guardando…"
+          className={
+            idea.publicadaEl
+              ? "rounded-lg border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 transition-colors hover:bg-zinc-50"
+              : "rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-emerald-700"
+          }
+        >
+          {idea.publicadaEl ? "Desmarcar publicada (volver a ideas)" : "Marcar como publicada"}
+        </SubmitButton>
+      </form>
 
       {!promocionada && (
         <div className="flex flex-col gap-2 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">

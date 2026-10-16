@@ -5,7 +5,7 @@ import type { Cuenta, EstadoPublicacion, Idea, Producto } from "@prisma/client";
 import { claseBadgeEstadoIdea, etiquetaEstadoIdea } from "./etiqueta-estado-idea";
 import { esAtrasada } from "@/lib/ideas/es-atrasada";
 import { mensajeDeError } from "@/lib/mensaje-de-error";
-import { eliminarIdea } from "@/app/ideas/actions";
+import { eliminarIdea, marcarPublicada } from "@/app/ideas/actions";
 import { claveDiaLocal, horaLocal } from "@/lib/zona-horaria";
 
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
@@ -23,6 +23,17 @@ export function IdeaFilaExpandible({ idea, ahora }: { idea: IdeaConRelaciones; a
   const [error, setError] = useState<string | null>(null);
   const [eliminando, startTransition] = useTransition();
   const atrasada = esAtrasada(ahora, { ...idea, yaPromocionada: idea.publicaciones.some((p) => p.estado === "publicada") });
+
+  function alternarPublicada() {
+    setError(null);
+    startTransition(async () => {
+      try {
+        await marcarPublicada(idea.id, !idea.publicadaEl);
+      } catch (err) {
+        setError(mensajeDeError(err));
+      }
+    });
+  }
 
   function eliminar() {
     if (!window.confirm(`¿Eliminar "${idea.titulo}"? No se puede deshacer.`)) return;
@@ -112,6 +123,14 @@ export function IdeaFilaExpandible({ idea, ahora }: { idea: IdeaConRelaciones; a
               <a href={`/ideas/${idea.id}`} className="text-xs font-medium text-indigo-600 hover:text-indigo-700">
                 Editar →
               </a>
+              <button
+                type="button"
+                onClick={alternarPublicada}
+                disabled={eliminando}
+                className="text-xs font-medium text-emerald-700 hover:text-emerald-800 disabled:opacity-50"
+              >
+                {idea.publicadaEl ? "Volver a ideas" : "Marcar como publicada"}
+              </button>
               <button
                 type="button"
                 onClick={eliminar}

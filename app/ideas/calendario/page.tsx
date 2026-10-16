@@ -89,6 +89,7 @@ export default async function CalendarioPage({
       estado: idea.estado,
       programadaPara: idea.programadaPara,
       programadaEnIgEl: idea.programadaEnIgEl,
+      publicadaEl: idea.publicadaEl,
       publicaciones: idea.publicaciones,
     });
     ideasPorDia[clave] = lista;
@@ -114,6 +115,7 @@ export default async function CalendarioPage({
     estado: idea.estado,
     programadaPara: idea.programadaPara,
     programadaEnIgEl: idea.programadaEnIgEl,
+      publicadaEl: idea.publicadaEl,
     publicaciones: idea.publicaciones,
   }));
 

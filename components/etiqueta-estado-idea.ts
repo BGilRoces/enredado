@@ -16,6 +16,7 @@ const BADGES: Record<EstadoIdea, string> = {
   enDrive: "bg-amber-100 text-amber-700",
 };
 
+const BADGE_PUBLICADA_A_MANO = "bg-emerald-600 text-white";
 const BADGE_PROGRAMADA_EN_IG = "bg-emerald-100 text-emerald-700";
 const BADGE_FALTA_PROGRAMAR = "bg-rose-100 text-rose-700";
 
@@ -24,6 +25,8 @@ export interface IdeaConEstado {
   programadaPara: Date | null;
   /** Ya la programaron a mano en la app de Instagram (ver ADR-0020). */
   programadaEnIgEl: Date | null;
+  /** La dueña/el dueño la marcó como publicada en Instagram. */
+  publicadaEl?: Date | null;
   // Sólo importa el historial: lo que el panel publicó antes de ADR-0020.
   publicaciones: { estado: EstadoPublicacion; programadaPara: Date | null }[];
 }
@@ -47,6 +50,7 @@ function publicadas(publicaciones: IdeaConEstado["publicaciones"]) {
 
 /** Lo que el panel publicó antes de ADR-0020 sigue mostrándose como "Publicada"; el resto de las Publicaciones ya no cuenta. */
 export function etiquetaEstadoIdea(idea: IdeaConEstado): string {
+  if (idea.publicadaEl) return "Publicada";
   const hechas = publicadas(idea.publicaciones);
   if (hechas.length > 0) return etiquetaEstado(hechas[0]);
   if (estaProgramadaEnIg(idea)) return "Programada en IG";
@@ -55,6 +59,7 @@ export function etiquetaEstadoIdea(idea: IdeaConEstado): string {
 }
 
 export function claseBadgeEstadoIdea(idea: IdeaConEstado): string {
+  if (idea.publicadaEl) return BADGE_PUBLICADA_A_MANO;
   const hechas = publicadas(idea.publicaciones);
   if (hechas.length > 0) return claseBadgeEstado(hechas[0]);
   if (estaProgramadaEnIg(idea)) return BADGE_PROGRAMADA_EN_IG;

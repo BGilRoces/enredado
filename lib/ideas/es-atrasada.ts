@@ -6,6 +6,7 @@ export interface IdeaAtrasable {
   /** Ya la publicó el panel (historial anterior a ADR-0020). */
   yaPromocionada: boolean;
   programadaEnIgEl: Date | null;
+  publicadaEl?: Date | null;
 }
 
 /**
@@ -17,7 +18,7 @@ export interface IdeaAtrasable {
  */
 export function esAtrasada(ahora: Date, idea: IdeaAtrasable): boolean {
   if (!idea.programadaPara) return false;
-  if (idea.yaPromocionada) return false;
+  if (idea.yaPromocionada || idea.publicadaEl) return false;
   if (idea.programadaEnIgEl) return false;
   return idea.programadaPara <= ahora;
 }

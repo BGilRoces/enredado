@@ -46,6 +46,7 @@ export default async function DashboardPage() {
       estado: EstadoIdea.enDrive,
       programadaPara: { not: null },
       programadaEnIgEl: null,
+      publicadaEl: null,
       ...whereCuentasIdea(cuentaIdPermitida ? [cuentaIdPermitida] : null),
     },
     orderBy: { programadaPara: "asc" },

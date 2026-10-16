@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { EstadoIdea, Prisma, TipoPublicacion } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
-import { whereCuentasIdea } from "@/lib/ideas/cuentas-de-idea";
+import { whereCuentasIdea, wherePublicadaIdea } from "@/lib/ideas/cuentas-de-idea";
 import {
   actualizarIdea,
   calendarizarIdea,
@@ -11,6 +11,7 @@ import {
   eliminarIdea,
   marcarEnDrive,
   marcarProgramadaEnIg,
+  marcarPublicada,
   reordenarArchivosIdea,
 } from "@/app/ideas/actions";
 import { resolverLinkDrive } from "@/app/publicar/actions";
@@ -78,6 +79,7 @@ function resumenIdea(idea: IdeaResumen) {
     archivosEnCarpeta: idea._count.archivos,
     faltaProgramarEnIg: faltaProgramarEnIg(idea),
     programadaEnIgEl: idea.programadaEnIgEl?.toISOString() ?? null,
+    publicadaEl: idea.publicadaEl?.toISOString() ?? null,
     // Historial de lo que el panel publicó antes de ADR-0020; hoy el panel no publica.
     publicaciones: idea.publicaciones,
   };
@@ -212,13 +214,14 @@ export const herramientas: Herramienta[] = [
       tipo: tipo.optional(),
       sinFecha: z.boolean().optional().describe("true = sólo las que todavía no están calendarizadas."),
       faltaProgramarEnIg: z.boolean().optional().describe("true = sólo las enDrive con fecha que todavía no se marcaron como programadas en la app de Instagram."),
+      publicadas: z.boolean().optional().describe("true = sólo las ya publicadas; por defecto las publicadas NO se listan (como en el panel)."),
       limite: limite(30),
     }),
     annotations: SOLO_LECTURA,
-    run: async ({ cuentaId, estado, productoId, soloGenerales, tipo, sinFecha, faltaProgramarEnIg, limite }) => {
+    run: async ({ cuentaId, estado, productoId, soloGenerales, tipo, sinFecha, faltaProgramarEnIg, publicadas, limite }) => {
       const ideas = await prisma.idea.findMany({
         where: {
-          ...whereCuentasIdea(cuentaId ? [cuentaId] : null),
+          AND: [whereCuentasIdea(cuentaId ? [cuentaId] : null), wherePublicadaIdea(publicadas === true)],
           ...(estado && { estado }),
           ...(productoId && { productoId }),
           ...(soloGenerales && !productoId && { productoId: null }),
@@ -429,6 +432,19 @@ export const herramientas: Herramienta[] = [
   }),
 
   definir({
+    name: "marcar_publicada",
+    title: "Marcar idea como publicada",
+    description:
+      "Registra que la Idea ya salió en Instagram: deja de aparecer en el listado de ideas (listar_ideas con publicadas=true la muestra). No publica nada. Usalo sólo cuando el usuario confirme que ya se publicó. `publicada: false` la vuelve al listado.",
+    schema: z.object({ id: z.string().min(1), publicada: z.boolean().default(true) }),
+    annotations: { idempotentHint: true, openWorldHint: false },
+    run: async ({ id, publicada }) => {
+      await marcarPublicada(id, publicada);
+      return detalleIdea(id);
+    },
+  }),
+
+  definir({
     name: "marcar_programada_en_ig",
     title: "Marcar idea como programada en Instagram",
     description:
@@ -473,6 +489,7 @@ export const INSTRUCCIONES = [
   "Flujo: listar_cuentas → crear_idea → (el dueño la programa en la app de IG) → marcar_programada_en_ig.",
   "",
   "- Una Idea con `driveLink` + `programadaPara` queda lista y figura como \"falta programar en IG\" (listar_ideas con faltaProgramarEnIg=true). Cuando el usuario confirme que ya la programó en la app, llamá marcar_programada_en_ig.",
+  "- Cuando la idea ya salió en Instagram, marcar_publicada la saca del listado (las publicadas no aparecen en listar_ideas salvo publicadas=true).",
   "- Una idea puede ser un colab entre varias Cuentas: `cuentaId` es la principal y `colaboradoraIds` las demás; aparece en la agenda y los filtros de todas. El producto, si hay, es de la Cuenta principal.",
   "- Cada Cuenta puede tener productos (ver listar_cuentas). Una idea se asocia a uno con `productoId`; sin producto es una idea general, de marca. Cuentas sin productos (ej.: software o servicios) sólo tienen ideas de marca.",
   "- `audio` es el nombre del audio de IG a usar; sirve de recordatorio para quien programa en la app.",
