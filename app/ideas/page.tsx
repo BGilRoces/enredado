@@ -57,7 +57,8 @@ export default async function IdeasPage({
         ? { estado: EstadoIdea.enDrive, programadaPara: { not: null }, programadaEnIgEl: null }
         : {}),
     },
-    orderBy: { creadaEn: "desc" },
+    // Por fecha programada (las más próximas primero); las que no tienen fecha, al final.
+    orderBy: [{ programadaPara: { sort: "asc", nulls: "last" } }, { creadaEn: "desc" }],
     include: { cuenta: true, colaboradoras: true, producto: true, publicaciones: { select: { estado: true, programadaPara: true } } },
   });
 
