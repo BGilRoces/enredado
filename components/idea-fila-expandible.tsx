@@ -5,7 +5,14 @@ import type { Cuenta, EstadoPublicacion, Idea, Producto } from "@prisma/client";
 import { claseBadgeEstadoIdea, etiquetaEstadoIdea } from "./etiqueta-estado-idea";
 import { esAtrasada } from "@/lib/ideas/es-atrasada";
 import { mensajeDeError } from "@/lib/mensaje-de-error";
-import { calendarizarIdea, cambiarEstadoIdea, descalendarizarIdea, eliminarIdea, marcarPublicada } from "@/app/ideas/actions";
+import {
+  calendarizarIdea,
+  cambiarEstadoIdea,
+  descalendarizarIdea,
+  eliminarIdea,
+  marcarEnDrive,
+  marcarPublicada,
+} from "@/app/ideas/actions";
 import { aInputDatetimeLocal, claveDiaLocal, desdeHoraLocal, horaLocal } from "@/lib/zona-horaria";
 
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
@@ -22,6 +29,7 @@ export function IdeaFilaExpandible({ idea, ahora }: { idea: IdeaConRelaciones; a
   const [abierta, setAbierta] = useState(false);
   const [editandoFecha, setEditandoFecha] = useState(false);
   const [fechaElegida, setFechaElegida] = useState("");
+  const [driveLink, setDriveLink] = useState(idea.driveLink ?? "");
   const [error, setError] = useState<string | null>(null);
   const [eliminando, startTransition] = useTransition();
   const atrasada = esAtrasada(ahora, { ...idea, yaPromocionada: idea.publicaciones.some((p) => p.estado === "publicada") });
@@ -57,6 +65,19 @@ export function IdeaFilaExpandible({ idea, ahora }: { idea: IdeaConRelaciones; a
     startTransition(async () => {
       try {
         await cambiarEstadoIdea(idea.id, idea.estado === "editada" ? "grabada" : "editada");
+      } catch (err) {
+        setError(mensajeDeError(err));
+      }
+    });
+  }
+
+  // Pasa la idea a "En Drive" y, si el link es de una carpeta, carga sus archivos (ver marcarEnDrive).
+  const driveLinkCambio = driveLink.trim() !== (idea.driveLink ?? "");
+  function guardarDriveLink() {
+    setError(null);
+    startTransition(async () => {
+      try {
+        await marcarEnDrive(idea.id, driveLink);
       } catch (err) {
         setError(mensajeDeError(err));
       }
@@ -194,6 +215,29 @@ export function IdeaFilaExpandible({ idea, ahora }: { idea: IdeaConRelaciones; a
               </div>
             )}
             <div className="flex flex-wrap items-center gap-2 border-t border-zinc-100 pt-3">
+              <form
+                className="flex w-full gap-2"
+                onSubmit={(evento) => {
+                  evento.preventDefault();
+                  if (driveLinkCambio && driveLink.trim()) guardarDriveLink();
+                }}
+              >
+                <input
+                  type="url"
+                  value={driveLink}
+                  onChange={(evento) => setDriveLink(evento.target.value)}
+                  placeholder="Link de Drive (archivo o carpeta)"
+                  aria-label="Link de Drive"
+                  className="min-w-0 flex-1 rounded-lg border border-zinc-300 p-1.5 text-xs outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                />
+                <button
+                  type="submit"
+                  disabled={eliminando || !driveLink.trim() || !driveLinkCambio}
+                  className="shrink-0 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 disabled:opacity-50"
+                >
+                  {eliminando ? "Guardando…" : "Guardar link"}
+                </button>
+              </form>
               <a
                 href={`/ideas/${idea.id}`}
                 className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-zinc-800"
