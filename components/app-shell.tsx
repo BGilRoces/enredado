@@ -5,7 +5,8 @@ import { Sidebar, type Seccion } from "@/components/sidebar";
 export async function AppShell({
   active,
   // "completo" es para pantallas con layout de columnas (ej. calendario +
-  // ideas) que necesitan más aire que el max-w-2xl de un formulario/listado.
+  // ideas) o listados anchos (ej. ideas) que necesitan más aire que el
+  // max-w-2xl de un formulario.
   ancho = "normal",
   children,
 }: {

@@ -70,7 +70,7 @@ export default async function IdeasPage({
   const ahora = new Date();
 
   return (
-    <AppShell active="ideas">
+    <AppShell active="ideas" ancho="completo">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Ideas</h1>
         <div className="flex items-center gap-3">
