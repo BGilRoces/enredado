@@ -17,7 +17,7 @@ import { aInputDatetimeLocal, claveDiaLocal, desdeHoraLocal, horaLocal } from "@
 
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
-type IdeaConRelaciones = Idea & {
+export type IdeaConRelaciones = Idea & {
   cuenta: Cuenta;
   colaboradoras: Cuenta[];
   producto: Producto | null;
@@ -32,12 +32,14 @@ export function IdeaFilaExpandible({
   idea,
   ahora,
   mostrarCuentas = true,
+  abiertaInicial = false,
 }: {
   idea: IdeaConRelaciones;
   ahora: Date;
   mostrarCuentas?: boolean;
+  abiertaInicial?: boolean;
 }) {
-  const [abierta, setAbierta] = useState(false);
+  const [abierta, setAbierta] = useState(abiertaInicial);
   const [editandoFecha, setEditandoFecha] = useState(false);
   const [fechaElegida, setFechaElegida] = useState("");
   const [driveLink, setDriveLink] = useState(idea.driveLink ?? "");

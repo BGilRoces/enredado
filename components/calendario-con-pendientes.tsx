@@ -16,11 +16,13 @@ export function CalendarioConPendientes({
   ideasPorDia,
   hoyClave,
   ideasPendientes,
+  mostrarCuentas,
 }: {
   dias: DiaDeGrilla[];
   ideasPorDia: Record<string, IdeaEnCalendario[]>;
   hoyClave: string;
   ideasPendientes: IdeaEnCalendario[];
+  mostrarCuentas: boolean;
 }) {
   const [elegida, setElegida] = useState<IdeaEnCalendario | null>(null);
 
@@ -58,6 +60,7 @@ export function CalendarioConPendientes({
           hoyClave={hoyClave}
           ideaParaProgramar={elegida ? { id: elegida.id, titulo: elegida.titulo } : null}
           alProgramar={() => setElegida(null)}
+          mostrarCuentas={mostrarCuentas}
         />
       </div>
     </div>

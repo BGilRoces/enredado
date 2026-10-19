@@ -3,8 +3,9 @@
 import { useState, useTransition } from "react";
 import type { TipoPublicacion } from "@prisma/client";
 import type { DiaDeGrilla } from "@/lib/calendario/mes-en-grilla";
-import { claseBadgeEstadoIdea, etiquetaEstadoIdea } from "./etiqueta-estado-idea";
+import { claseBadgeEstadoIdea } from "./etiqueta-estado-idea";
 import type { IdeaConEstado } from "./etiqueta-estado-idea";
+import { IdeaFilaExpandible, type IdeaConRelaciones } from "./idea-fila-expandible";
 import { calendarizarIdea } from "@/app/ideas/actions";
 import { mensajeDeError } from "@/lib/mensaje-de-error";
 import { desdeHoraLocal, horaLocal } from "@/lib/zona-horaria";
@@ -16,6 +17,8 @@ export interface IdeaEnCalendario extends IdeaConEstado {
   /** Null = idea general (de marca). */
   productoNombre: string | null;
   tipo: TipoPublicacion;
+  /** La Idea entera, para abrirla en la misma card expandible de /ideas. */
+  completa: IdeaConRelaciones;
 }
 
 const DIAS_SEMANA = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
@@ -67,6 +70,7 @@ export function CalendarioMes({
   hoyClave,
   ideaParaProgramar = null,
   alProgramar,
+  mostrarCuentas = true,
 }: {
   dias: DiaDeGrilla[];
   ideasPorDia: Record<string, IdeaEnCalendario[]>;
@@ -74,7 +78,11 @@ export function CalendarioMes({
   /** Idea sin fecha elegida con un toque (alternativa a arrastrar, para celu): tocar un día la programa ahí. */
   ideaParaProgramar?: ArrastreIdea | null;
   alProgramar?: () => void;
+  mostrarCuentas?: boolean;
 }) {
+  // Desktop: la idea tocada en la grilla se abre en un modal con su card expandida.
+  const [ideaAbiertaId, setIdeaAbiertaId] = useState<string | null>(null);
+  const [ahora] = useState(() => new Date());
   const [sobreClave, setSobreClave] = useState<string | null>(null);
   // En celu la grilla sólo muestra puntos: el día tocado lista sus ideas debajo.
   const [diaSeleccionado, setDiaSeleccionado] = useState<string | null>(
@@ -107,6 +115,10 @@ export function CalendarioMes({
   }
 
   const ideasDiaSeleccionado = diaSeleccionado ? (ideasPorDia[diaSeleccionado] ?? []) : [];
+  // Se busca en cada render: si la idea se elimina o sale del mes, el modal se cierra solo.
+  const ideaAbierta = ideaAbiertaId
+    ? (Object.values(ideasPorDia).flat().find((idea) => idea.id === ideaAbiertaId) ?? null)
+    : null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -128,9 +140,7 @@ export function CalendarioMes({
               role="button"
               tabIndex={0}
               aria-label={`${formatearClave(clave)}: ${ideasDelDia.length} idea${ideasDelDia.length === 1 ? "" : "s"}`}
-              onClick={(e) => {
-                // Los links de cada idea (desktop) navegan solos; el resto de la celda elige el día.
-                if ((e.target as HTMLElement).closest("a")) return;
+              onClick={() => {
                 if (ideaParaProgramar) abrirModal(clave, ideaParaProgramar);
                 else setDiaSeleccionado(clave);
               }}
@@ -177,17 +187,22 @@ export function CalendarioMes({
               )}
               <div className="hidden max-h-20 flex-col gap-0.5 overflow-y-auto md:flex">
                 {ideasDelDia.map((idea) => (
-                  <a
+                  <button
+                    type="button"
                     key={idea.id}
-                    href={`/ideas/${idea.id}`}
-                    className={`truncate rounded px-1 py-0.5 text-[11px] leading-tight ${claseBadgeEstadoIdea(idea)}`}
+                    onClick={(e) => {
+                      // Que no lo tome la celda (elegir día / programar).
+                      e.stopPropagation();
+                      setIdeaAbiertaId(idea.id);
+                    }}
+                    className={`truncate rounded px-1 py-0.5 text-left text-[11px] leading-tight ${claseBadgeEstadoIdea(idea)}`}
                     title={`${idea.titulo} · ${idea.cuentaNombre}${idea.productoNombre ? ` · ${idea.productoNombre}` : ""}`}
                   >
                     {idea.programadaPara && (
                       <span className="mr-1 font-medium">{horaLocal(idea.programadaPara)}</span>
                     )}
                     {idea.titulo}
-                  </a>
+                  </button>
                 ))}
               </div>
             </div>
@@ -206,30 +221,39 @@ export function CalendarioMes({
               {[...ideasDiaSeleccionado]
                 .sort((a, b) => (a.programadaPara?.getTime() ?? 0) - (b.programadaPara?.getTime() ?? 0))
                 .map((idea) => (
-                  <li key={idea.id}>
-                    <a
-                      href={`/ideas/${idea.id}`}
-                      className="flex items-start gap-3 rounded-2xl border border-zinc-200 bg-white p-3 text-sm shadow-sm"
-                    >
-                      <span className="w-11 shrink-0 pt-0.5 text-xs font-medium text-zinc-500">
-                        {idea.programadaPara ? horaLocal(idea.programadaPara) : ""}
-                      </span>
-                      <span className="flex min-w-0 flex-1 flex-col gap-1">
-                        <span className="break-words font-medium text-zinc-900">{idea.titulo}</span>
-                        <span className="text-xs text-zinc-500">
-                          {idea.cuentaNombre}
-                          {idea.productoNombre ? ` · ${idea.productoNombre}` : ""} · {idea.tipo}
-                        </span>
-                        <span className={`w-fit rounded-full px-2 py-0.5 text-[11px] font-medium ${claseBadgeEstadoIdea(idea)}`}>
-                          {etiquetaEstadoIdea(idea)}
-                        </span>
-                      </span>
-                    </a>
-                  </li>
+                  <IdeaFilaExpandible key={idea.id} idea={idea.completa} ahora={ahora} mostrarCuentas={mostrarCuentas} />
                 ))}
             </ul>
           )}
         </section>
+      )}
+
+      {ideaAbierta && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-[10vh]"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIdeaAbiertaId(null);
+          }}
+        >
+          <div className="flex w-full max-w-xl flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => setIdeaAbiertaId(null)}
+              className="self-end rounded-lg bg-white/90 px-3 py-1 text-xs font-medium text-zinc-700 shadow-sm hover:bg-white"
+            >
+              Cerrar
+            </button>
+            <ul>
+              <IdeaFilaExpandible
+                key={ideaAbierta.id}
+                idea={ideaAbierta.completa}
+                ahora={ahora}
+                mostrarCuentas={mostrarCuentas}
+                abiertaInicial
+              />
+            </ul>
+          </div>
+        </div>
       )}
 
       {modal && (

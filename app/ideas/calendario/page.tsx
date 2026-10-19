@@ -91,6 +91,7 @@ export default async function CalendarioPage({
       programadaEnIgEl: idea.programadaEnIgEl,
       publicadaEl: idea.publicadaEl,
       publicaciones: idea.publicaciones,
+      completa: idea,
     });
     ideasPorDia[clave] = lista;
   }
@@ -117,6 +118,7 @@ export default async function CalendarioPage({
     programadaEnIgEl: idea.programadaEnIgEl,
     publicadaEl: idea.publicadaEl,
     publicaciones: idea.publicaciones,
+    completa: idea,
   }));
 
   const anterior = mesSiguiente(anio, mes, -1);
@@ -172,6 +174,7 @@ export default async function CalendarioPage({
         ideasPorDia={ideasPorDia}
         hoyClave={claveDiaLocal(new Date())}
         ideasPendientes={ideasPendientesEnCalendario}
+        mostrarCuentas={cuentas.length > 1}
       />
     </AppShell>
   );
