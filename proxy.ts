@@ -4,16 +4,6 @@ import { APP_SLUG } from "@/lib/app-config";
 import { decideAuthRedirect, isSelfAuthenticated } from "@/lib/auth/decide-redirect";
 
 export async function proxy(request: NextRequest) {
-  // Solo `next dev`: sin login en localhost. En `next build`/`start` NODE_ENV es "production".
-  if (process.env.NODE_ENV === "development") {
-    if (request.nextUrl.pathname === "/login") {
-      const url = request.nextUrl.clone();
-      url.pathname = "/";
-      return NextResponse.redirect(url);
-    }
-    return NextResponse.next({ request });
-  }
-
   // El servidor MCP valida su propio token (ADR-0017): no gastar un round-trip
   // a Supabase Auth en cada request para una sesión que no usa.
   if (isSelfAuthenticated(request.nextUrl.pathname)) {
