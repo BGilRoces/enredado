@@ -5,8 +5,8 @@ import { mesEnGrilla } from "@/lib/calendario/mes-en-grilla";
 import { claveDiaLocal, inicioDeDiaLocal } from "@/lib/zona-horaria";
 import { FiltroCheckboxes } from "@/components/filtro-checkboxes";
 import { parsearSeleccionMultiple } from "@/lib/parsear-seleccion-multiple";
-import { CalendarioMes, type IdeaEnCalendario } from "@/components/calendario-mes";
-import { IdeasPendientesLista } from "@/components/ideas-pendientes-lista";
+import type { IdeaEnCalendario } from "@/components/calendario-mes";
+import { CalendarioConPendientes } from "@/components/calendario-con-pendientes";
 import { AppShell } from "@/components/app-shell";
 import { SelectorMes } from "@/components/selector-mes";
 import { opcionesProducto, parsearFiltroProductos, whereProducto } from "@/lib/productos/filtro";
@@ -115,7 +115,7 @@ export default async function CalendarioPage({
     estado: idea.estado,
     programadaPara: idea.programadaPara,
     programadaEnIgEl: idea.programadaEnIgEl,
-      publicadaEl: idea.publicadaEl,
+    publicadaEl: idea.publicadaEl,
     publicaciones: idea.publicaciones,
   }));
 
@@ -129,7 +129,7 @@ export default async function CalendarioPage({
     <AppShell active="calendario" ancho="completo">
       <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Calendario</h1>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <a
             href={`/ideas/calendario?mes=${claveMes(anterior.anio, anterior.mes)}${queryCuenta}`}
@@ -165,14 +165,12 @@ export default async function CalendarioPage({
         </div>
       </div>
 
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-        <div className="w-full shrink-0 lg:w-64">
-          <IdeasPendientesLista ideas={ideasPendientesEnCalendario} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <CalendarioMes dias={dias} ideasPorDia={ideasPorDia} hoyClave={claveDiaLocal(new Date())} />
-        </div>
-      </div>
+      <CalendarioConPendientes
+        dias={dias}
+        ideasPorDia={ideasPorDia}
+        hoyClave={claveDiaLocal(new Date())}
+        ideasPendientes={ideasPendientesEnCalendario}
+      />
     </AppShell>
   );
 }

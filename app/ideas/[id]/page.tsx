@@ -160,9 +160,9 @@ export default async function IdeaPage({
 
   return (
     <AppShell active="ideas">
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold tracking-tight text-zinc-900">{idea.titulo}</h1>
-        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${claseBadgeEstadoIdea(idea)}`}>
+      <div className="flex items-start justify-between gap-2">
+        <h1 className="min-w-0 break-words text-xl font-semibold tracking-tight text-zinc-900">{idea.titulo}</h1>
+        <span className={`mt-1 shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${claseBadgeEstadoIdea(idea)}`}>
           {etiquetaEstadoIdea(idea)}
         </span>
       </div>

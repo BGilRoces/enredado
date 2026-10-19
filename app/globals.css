@@ -32,3 +32,12 @@ button:not(:disabled) {
 button:not(:disabled):active {
   transform: scale(0.96);
 }
+
+/* iOS hace zoom al enfocar un campo con letra < 16px: en celu los campos van a 16px. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

@@ -92,7 +92,7 @@ export default async function DashboardPage() {
             <div className="flex flex-col gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4">
               <h2 className="text-sm font-semibold text-rose-900">Necesita atención</h2>
               {cuentasNecesitanReconexion.map((cuenta) => (
-                <div key={cuenta.id} className="flex items-center justify-between gap-2 text-sm">
+                <div key={cuenta.id} className="flex items-start justify-between gap-2 text-sm sm:items-center">
                   <span className="text-rose-700">
                     {cuenta.nombre} (@{cuenta.igUsername}) necesita reconexión.
                   </span>
@@ -140,7 +140,7 @@ export default async function DashboardPage() {
                       href={`/ideas/${idea.id}`}
                       className="flex flex-col gap-1 rounded-2xl border border-zinc-200 bg-white p-4 text-sm shadow-sm transition-colors hover:bg-zinc-50"
                     >
-                      <span className="font-medium text-zinc-900">{idea.titulo}</span>
+                      <span className="break-words font-medium text-zinc-900">{idea.titulo}</span>
                       <span className="text-xs text-zinc-500">
                         {nombresCuentasIdea(idea)} · {idea.tipo} · {formatearFechaHora(idea.programadaPara!)}
                         {idea.audio ? ` · Audio: ${idea.audio}` : ""}

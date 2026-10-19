@@ -15,14 +15,14 @@ const NAV: { href: string; label: string; seccion: Seccion; icon: (props: { clas
   { href: "/historial", label: "Historial", seccion: "historial", icon: IconHistorial },
 ];
 
-/** Sidebar colapsable con navegación, compartida por las páginas autenticadas. */
+/** Sidebar colapsable con navegación, compartida por las páginas autenticadas. En celu se oculta (ver NavegacionMovil). */
 export function Sidebar({ active, email }: { active: Seccion; email: string | null }) {
   const [colapsado, setColapsado] = useState(false);
 
   return (
     <aside
       className={
-        "sticky top-0 flex h-screen shrink-0 flex-col border-r border-zinc-200 bg-white transition-[width] duration-200 " +
+        "sticky top-0 hidden h-screen shrink-0 flex-col md:flex border-r border-zinc-200 bg-white transition-[width] duration-200 " +
         (colapsado ? "w-16" : "w-56")
       }
     >
@@ -100,6 +100,71 @@ export function Sidebar({ active, email }: { active: Seccion; email: string | nu
         </form>
       </div>
     </aside>
+  );
+}
+
+/**
+ * Navegación para celu, en vez del sidebar: barra superior con la marca y las
+ * acciones de cuenta (configuración, cerrar sesión), y una barra de pestañas
+ * fija abajo con las secciones, al alcance del pulgar.
+ */
+export function NavegacionMovil({ active }: { active: Seccion }) {
+  return (
+    <>
+      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-zinc-200 bg-white/90 px-4 py-2.5 backdrop-blur md:hidden">
+        <Link
+          href="/"
+          className="bg-gradient-to-r from-indigo-600 to-fuchsia-500 bg-clip-text text-lg font-bold tracking-tight text-transparent"
+        >
+          enredado
+        </Link>
+        <div className="flex items-center gap-1">
+          <a
+            href="/configuracion"
+            aria-label="Configuración"
+            className={
+              "rounded-full p-2 transition-colors " +
+              (active === "configuracion" ? "bg-indigo-50 text-indigo-700" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900")
+            }
+          >
+            <IconConfiguracion className="h-5 w-5" />
+          </a>
+          <form action={cerrarSesion}>
+            <SubmitButton
+              aria-label="Cerrar sesión"
+              className="rounded-full p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900"
+            >
+              <IconCerrarSesion className="h-5 w-5" />
+            </SubmitButton>
+          </form>
+        </div>
+      </header>
+
+      <nav
+        aria-label="Secciones"
+        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-zinc-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+      >
+        {NAV.map((item) => {
+          const activo = item.seccion === active;
+          return (
+            <a
+              key={item.href}
+              href={item.href}
+              aria-current={activo ? "page" : undefined}
+              className={
+                "flex flex-col items-center gap-0.5 py-2 text-[11px] transition-colors " +
+                (activo ? "font-medium text-indigo-700" : "text-zinc-500")
+              }
+            >
+              <span className={"rounded-full px-3 py-0.5 transition-colors " + (activo ? "bg-indigo-50" : "")}>
+                <item.icon className="h-5 w-5" />
+              </span>
+              {item.label}
+            </a>
+          );
+        })}
+      </nav>
+    </>
   );
 }
 

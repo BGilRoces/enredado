@@ -86,10 +86,10 @@ export function CarpetaIdeaArchivos({
               arrastrando === archivo.id ? "opacity-40" : ""
             }`}
           >
-            <span className="flex items-center gap-2 truncate text-zinc-700">
+            <span className="flex min-w-0 items-center gap-2 text-zinc-700">
               <span className="text-zinc-400">⠿</span>
-              <DriveMiniatura fileId={archivo.driveFileId} resourceKey={archivo.driveResourceKey} className="h-12 w-12" />
-              {archivo.nombre ?? archivo.driveFileId}
+              <DriveMiniatura fileId={archivo.driveFileId} resourceKey={archivo.driveResourceKey} className="h-12 w-12 shrink-0" />
+              <span className="truncate">{archivo.nombre ?? archivo.driveFileId}</span>
             </span>
             <button
               type="button"

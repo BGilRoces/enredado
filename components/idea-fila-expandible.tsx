@@ -110,7 +110,7 @@ export function IdeaFilaExpandible({ idea, ahora }: { idea: IdeaConRelaciones; a
         title="Cambiar la fecha"
         aria-label="Cambiar la fecha"
         aria-expanded={editandoFecha}
-        className={`flex w-20 shrink-0 cursor-pointer flex-col items-center justify-center gap-0.5 border-r border-zinc-200 px-2 py-3 text-center transition-colors ${
+        className={`flex w-16 shrink-0 cursor-pointer flex-col items-center justify-center gap-0.5 border-r border-zinc-200 px-1.5 py-3 sm:w-20 sm:px-2 text-center transition-colors ${
           atrasada ? "bg-rose-50 hover:bg-rose-100" : "bg-zinc-50 hover:bg-zinc-100"
         } ${editandoFecha ? "ring-2 ring-inset ring-indigo-300" : ""}`}
       >
@@ -126,7 +126,7 @@ export function IdeaFilaExpandible({ idea, ahora }: { idea: IdeaConRelaciones; a
           <span className="text-xs font-medium text-zinc-400">Sin fecha</span>
         )}
       </button>
-      <div className="flex min-w-0 flex-1 flex-col p-4">
+      <div className="flex min-w-0 flex-1 flex-col p-3 sm:p-4">
         {editandoFecha && (
           <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 p-2">
             <input
@@ -135,7 +135,7 @@ export function IdeaFilaExpandible({ idea, ahora }: { idea: IdeaConRelaciones; a
               onChange={(evento) => setFechaElegida(evento.target.value)}
               onClick={(evento) => evento.currentTarget.showPicker?.()}
               autoFocus
-              className="rounded-lg border border-zinc-300 bg-white p-1.5 text-xs outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+              className="w-full rounded-lg border border-zinc-300 bg-white p-1.5 text-xs outline-none sm:w-auto focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
             />
             <button
               type="button"
@@ -171,7 +171,7 @@ export function IdeaFilaExpandible({ idea, ahora }: { idea: IdeaConRelaciones; a
           className="flex w-full flex-col gap-2 text-left"
           aria-expanded={abierta}
         >
-          <span className="font-medium text-zinc-900">{idea.titulo}</span>
+          <span className="break-words font-medium text-zinc-900">{idea.titulo}</span>
           <span className="flex flex-wrap items-center gap-1.5">
             {[idea.cuenta, ...idea.colaboradoras].map((cuenta) => (
               <span key={cuenta.id} className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">

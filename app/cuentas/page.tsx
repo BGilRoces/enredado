@@ -68,13 +68,13 @@ export default async function CuentasPage({
 
   return (
     <AppShell active="cuentas">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold tracking-tight text-zinc-900">
           Cuentas de Instagram
         </h1>
         {!cuentaIdPermitida && (
           <div className="flex items-center gap-3">
-            <a href="/configuracion" className="text-sm font-medium text-indigo-600 hover:text-indigo-700">
+            <a href="/configuracion" className="hidden text-sm font-medium text-indigo-600 hover:text-indigo-700 sm:inline">
               Configuración
             </a>
             <a
@@ -88,7 +88,7 @@ export default async function CuentasPage({
       </div>
 
       {!cuentaIdPermitida && (
-        <form action={crearCuentaManual} className="flex flex-wrap items-end gap-2 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+        <form action={crearCuentaManual} className="flex flex-col gap-2 rounded-2xl sm:flex-row sm:flex-wrap sm:items-end border border-zinc-200 bg-white p-4 shadow-sm">
           <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600">
             Nombre
             <input
@@ -132,13 +132,13 @@ export default async function CuentasPage({
               key={cuenta.id}
               className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm"
             >
-              <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-600 to-fuchsia-500 text-sm font-semibold text-white">
                   {cuenta.nombre.slice(0, 1).toUpperCase()}
                 </span>
-                <div>
-                  <p className="font-medium text-zinc-900">{cuenta.nombre}</p>
+                <div className="min-w-0">
+                  <p className="break-words font-medium text-zinc-900">{cuenta.nombre}</p>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm text-zinc-500">@{cuenta.igUsername}</span>
                     <span

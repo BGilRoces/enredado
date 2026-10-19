@@ -35,7 +35,7 @@ export function DriveLinkIdeaInput({
 
   return (
     <>
-      <div className="flex flex-1 gap-2">
+      <div className="flex min-w-0 flex-1 basis-full gap-2 sm:basis-auto">
         <input
           name="driveLink"
           value={link}
