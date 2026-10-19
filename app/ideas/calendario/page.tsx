@@ -148,12 +148,14 @@ export default async function CalendarioPage({
           </a>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <FiltroCheckboxes
-            name="cuentaId"
-            etiqueta="Cuenta:"
-            opciones={cuentas.map((cuenta) => ({ value: cuenta.id, label: cuenta.nombre }))}
-            seleccionadas={cuentasFiltro}
-          />
+          {cuentas.length > 1 && (
+            <FiltroCheckboxes
+              name="cuentaId"
+              etiqueta="Cuenta:"
+              opciones={cuentas.map((cuenta) => ({ value: cuenta.id, label: cuenta.nombre }))}
+              seleccionadas={cuentasFiltro}
+            />
+          )}
           {opcionesProductos.length > 0 && (
             <FiltroCheckboxes
               name="productoId"

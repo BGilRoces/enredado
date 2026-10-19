@@ -60,12 +60,14 @@ export default async function HistorialPage({
       <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Historial</h1>
 
       <div className="flex flex-wrap items-center gap-2">
-        <FiltroCheckboxes
-          name="cuentaId"
-          etiqueta="Cuenta:"
-          opciones={cuentas.map((cuenta) => ({ value: cuenta.id, label: cuenta.nombre }))}
-          seleccionadas={cuentasFiltro}
-        />
+        {cuentas.length > 1 && (
+          <FiltroCheckboxes
+            name="cuentaId"
+            etiqueta="Cuenta:"
+            opciones={cuentas.map((cuenta) => ({ value: cuenta.id, label: cuenta.nombre }))}
+            seleccionadas={cuentasFiltro}
+          />
+        )}
         <FiltroCheckboxes
           name="estado"
           etiqueta="Estado:"

@@ -105,12 +105,14 @@ export default async function IdeasPage({
         >
           {verPublicadas ? "Volver a las ideas" : "Ver publicadas"}
         </a>
-        <FiltroCheckboxes
-          name="cuentaId"
-          etiqueta="Cuenta:"
-          opciones={cuentas.map((cuenta) => ({ value: cuenta.id, label: cuenta.nombre }))}
-          seleccionadas={cuentasFiltro}
-        />
+        {cuentas.length > 1 && (
+          <FiltroCheckboxes
+            name="cuentaId"
+            etiqueta="Cuenta:"
+            opciones={cuentas.map((cuenta) => ({ value: cuenta.id, label: cuenta.nombre }))}
+            seleccionadas={cuentasFiltro}
+          />
+        )}
         {opcionesProductos.length > 0 && (
           <FiltroCheckboxes
             name="productoId"
@@ -132,7 +134,7 @@ export default async function IdeasPage({
       ) : (
         <ul className="flex flex-col gap-2">
           {ideas.map((idea) => (
-            <IdeaFilaExpandible key={idea.id} idea={idea} ahora={ahora} />
+            <IdeaFilaExpandible key={idea.id} idea={idea} ahora={ahora} mostrarCuentas={cuentas.length > 1} />
           ))}
         </ul>
       )}
